@@ -92,6 +92,7 @@ class TierListPageState extends State<TierListPage> {
                   child: CustomerCart(
                     customer: customer,
                     highlighted: false,
+                    crossOutMode: crossOutMode,
                     onImageDropped: (item) {
                       if (!crossOutMode) {
                         setState(() {
@@ -119,9 +120,41 @@ class TierListPageState extends State<TierListPage> {
   }
 
   Widget buildImage(ImageData imageData) {
-    return LongPressDraggable<ImageData>(
-      data: imageData,
-      feedback: Material(
+    return GestureDetector(
+      onTap: () {
+        if (crossOutMode) {
+          setState(() {
+            imageData.crossedOut = !imageData.crossedOut;
+          });
+        } else {
+          _viewImage(imageData);
+        }
+      },
+      child: LongPressDraggable<ImageData>(
+        data: imageData,
+        feedback: Material(
+          child: SizedBox(
+            width: 100,
+            height: 100,
+            child: Stack(
+              children: [
+                Image.memory(
+                  imageData.bytes,
+                  fit: BoxFit.cover,
+                ),
+                if (imageData.crossedOut)
+                  const Center(
+                    child: Icon(
+                      Icons.clear,
+                      color: Colors.red,
+                      size: 50,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        childWhenDragging: Container(), // Display an empty container when dragging
         child: SizedBox(
           width: 100,
           height: 100,
@@ -142,38 +175,12 @@ class TierListPageState extends State<TierListPage> {
             ],
           ),
         ),
-      ),
-      childWhenDragging: Container(), // Display an empty container when dragging
-      child: GestureDetector(
-        onTap: () {
+        onDraggableCanceled: (velocity, offset) {
           if (crossOutMode) {
-            setState(() {
-              imageData.crossedOut = !imageData.crossedOut;
-            });
-          } else {
-            _viewImage(imageData);
+            return;
           }
         },
-        child: SizedBox(
-          width: 100,
-          height: 100,
-          child: Stack(
-            children: [
-              Image.memory(
-                imageData.bytes,
-                fit: BoxFit.cover,
-              ),
-              if (imageData.crossedOut)
-                const Center(
-                  child: Icon(
-                    Icons.clear,
-                    color: Colors.red,
-                    size: 50,
-                  ),
-                ),
-            ],
-          ),
-        ),
+        ignoringFeedbackSemantics: crossOutMode,
       ),
     );
   }
@@ -353,11 +360,13 @@ class CustomerCart extends StatelessWidget {
     super.key,
     required this.customer,
     this.highlighted = false,
+    required this.crossOutMode,
     required this.onImageDropped,
   });
 
   final Customer customer;
   final bool highlighted;
+  final bool crossOutMode;
   final Function(ImageData) onImageDropped;
 
   @override
@@ -370,43 +379,27 @@ class CustomerCart extends StatelessWidget {
       height: 150, // Adjust height as needed
       child: DragTarget<ImageData>(
         builder: (context, candidateData, rejectedData) {
-          return Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                color: customer.color,
-                child: Text(
-                  customer.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    ...customer.items.map((item) => DraggableImage(
-                          imageData: item,
-                          onDragComplete: (imageData) {
-                            // Handle drag completion if needed
-                          },
-                        )),
-                  ],
-                ),
-              ),
-            ],
+          return Expanded(
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                ...customer.items.map((item) => DraggableImage(
+                      imageData: item,
+                      onDragComplete: (imageData) {
+                        // Handle drag completion if needed
+                      },
+                    )),
+              ],
+            ),
           );
         },
+        onWillAccept: (data) => !crossOutMode,
         onAccept: (imageData) {
           onImageDropped(imageData);
         },
       ),
     );
   }
-
-
 
   Widget buildImage(ImageData imageData) {
     return Padding(
