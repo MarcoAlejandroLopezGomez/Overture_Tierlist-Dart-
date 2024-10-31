@@ -5,6 +5,9 @@ import 'package:image/image.dart' as img;
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:photo_view/photo_view.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:html' as html; // Add this import for web
 
 void main() {
   runApp(const MyApp());
@@ -253,7 +256,7 @@ class TierListPageState extends State<TierListPage> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         IconButton(
-          icon: const Icon(Icons.upload_file, size: 50),
+          icon: const Icon(Icons.add_photo_alternate, size: 50),
           onPressed: pickImages,
         ),
         IconButton(
@@ -268,6 +271,10 @@ class TierListPageState extends State<TierListPage> {
           icon: const Icon(Icons.save, size: 50),
           onPressed: saveTierList,
         ),
+        IconButton(
+        icon: const Icon(Icons.upload_file, size: 50),
+        onPressed: uploadTierList,
+      ),
       ],
     );
   }
@@ -309,19 +316,90 @@ class TierListPageState extends State<TierListPage> {
     }
   }
 
-  Future<void> saveTierList() async {
-    final jsonImages = images.map((image) => image.toJson()).toList();
-    final jsonCustomers = customers.map((customer) => customer.toJson()).toList();
+Future<void> saveTierList() async {
+  final buffer = StringBuffer();
 
-    final tierListJson = {
-      'images': jsonImages,
-      'customers': jsonCustomers,
-    };
-
-    final jsonEncoded = jsonEncode(tierListJson);
-
-    await File('tier_list.json').writeAsString(jsonEncoded);
+  for (final customer in customers) {
+    buffer.writeln('Tier: ${customer.name}');
+    for (final item in customer.items) {
+      buffer.writeln('  Image: ${base64Encode(item.bytes)}');
+      buffer.writeln('    Title: ${item.title}');
+      buffer.writeln('    Text: ${item.text}');
+    }
+    buffer.writeln();
   }
+
+  if (kIsWeb) {
+    // Web-specific code to save the file
+    final bytes = utf8.encode(buffer.toString());
+    final blob = html.Blob([bytes]);
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    html.AnchorElement(href: url)
+      ..setAttribute("download", "tier_list.txt")
+      ..click();
+    html.Url.revokeObjectUrl(url);
+  } else {
+    // Mobile/Desktop-specific code to save the file
+    final directory = await getApplicationDocumentsDirectory();
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: 'Please select an output file:',
+      fileName: 'tier_list.txt',
+      initialDirectory: directory.path,
+    );
+
+    if (path != null) {
+      final file = File(path);
+      await file.writeAsString(buffer.toString());
+    }
+  }
+}
+
+Future<void> uploadTierList() async {
+  final result = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: ['txt'],
+  );
+
+  if (result != null && result.files.isNotEmpty) {
+    final file = result.files.first;
+    final content = utf8.decode(file.bytes!);
+    parseTierList(content);
+  }
+}
+
+void parseTierList(String content) {
+  final lines = content.split('\n');
+  Customer? currentCustomer;
+  images.clear();
+  customers.forEach((customer) => customer.items.clear());
+
+  for (final line in lines) {
+    if (line.startsWith('Tier: ')) {
+      final tierName = line.substring(6);
+      currentCustomer = customers.firstWhere((c) => c.name == tierName, orElse: () => Customer(name: tierName, items: [], color: Colors.grey));
+    } else if (line.startsWith('  Image: ') && currentCustomer != null) {
+      final imageBytes = base64Decode(line.substring(9));
+      final titleLine = lines[lines.indexOf(line) + 1];
+      final textLine = lines[lines.indexOf(line) + 2];
+      final title = titleLine.startsWith('    Title: ') ? titleLine.substring(11) : '';
+      final text = textLine.startsWith('    Text: ') ? textLine.substring(10) : '';
+
+      final imageData = ImageData(
+        DateTime.now().millisecondsSinceEpoch.toString(),
+        '', // src is not needed as we are using bytes
+        bytes: imageBytes,
+        crossedOut: false,
+        isBase64: true,
+        title: title,
+        text: text,
+      );
+
+      currentCustomer.items.add(imageData);
+    }
+  }
+
+  setState(() {});
+}
 }
 
 class Customer {
