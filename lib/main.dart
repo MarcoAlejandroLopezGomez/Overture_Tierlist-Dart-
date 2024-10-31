@@ -32,6 +32,7 @@ class TierListPage extends StatefulWidget {
 
 class TierListPageState extends State<TierListPage> {
   bool crossOutMode = false;
+  bool editMode = false;
   List<ImageData> images = [];
   final List<Customer> customers = [
     Customer(name: '1st Pick', items: [], color: Colors.purple),
@@ -48,6 +49,22 @@ class TierListPageState extends State<TierListPage> {
         builder: (context) => PhotoViewPage(image: image),
       ),
     );
+  }
+
+  void _editImageText(ImageData image) {
+    setState(() {
+      editMode = true;
+    });
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TextEditorPage(image: image),
+      ),
+    ).then((_) {
+      setState(() {
+        editMode = false;
+      });
+    });
   }
 
   @override
@@ -93,8 +110,9 @@ class TierListPageState extends State<TierListPage> {
                     customer: customer,
                     highlighted: false,
                     crossOutMode: crossOutMode,
+                    editMode: editMode,
                     onImageDropped: (item) {
-                      if (!crossOutMode) {
+                      if (!crossOutMode && !editMode) {
                         setState(() {
                           // Remove the image from its current location
                           for (var c in customers) {
@@ -109,6 +127,7 @@ class TierListPageState extends State<TierListPage> {
                         });
                       }
                     },
+                    onEditImageText: _editImageText,
                   ),
                 ),
               ],
@@ -119,70 +138,114 @@ class TierListPageState extends State<TierListPage> {
     );
   }
 
-  Widget buildImage(ImageData imageData) {
+  Widget buildImage(ImageData imageData, {bool isInRow = false}) {
     return GestureDetector(
       onTap: () {
-        if (crossOutMode) {
-          setState(() {
+        setState(() {
+          if (crossOutMode) {
             imageData.crossedOut = !imageData.crossedOut;
-          });
-        } else {
-          _viewImage(imageData);
-        }
+          } else {
+            _viewImage(imageData);
+          }
+        });
       },
-      child: LongPressDraggable<ImageData>(
-        data: imageData,
-        feedback: Material(
-          child: SizedBox(
-            width: 100,
-            height: 100,
-            child: Stack(
+      child: SizedBox(
+        width: 100,
+        height: 100,
+        child: Stack(
+          children: [
+            Column(
               children: [
-                Image.memory(
-                  imageData.bytes,
-                  fit: BoxFit.cover,
-                ),
-                if (imageData.crossedOut)
-                  const Center(
-                    child: Icon(
-                      Icons.clear,
-                      color: Colors.red,
-                      size: 50,
+                if (imageData.title.isNotEmpty)
+                  Text(
+                    imageData.title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-              ],
-            ),
-          ),
-        ),
-        childWhenDragging: Container(), // Display an empty container when dragging
-        child: SizedBox(
-          width: 100,
-          height: 100,
-          child: Stack(
-            children: [
-              Image.memory(
-                imageData.bytes,
-                fit: BoxFit.cover,
-              ),
-              if (imageData.crossedOut)
-                const Center(
-                  child: Icon(
-                    Icons.clear,
-                    color: Colors.red,
-                    size: 50,
+                Expanded(
+                  child: Image.memory(
+                    imageData.bytes,
+                    fit: BoxFit.cover,
                   ),
                 ),
-            ],
-          ),
+              ],
+            ),
+            if (imageData.crossedOut)
+              const Center(
+                child: Icon(
+                  Icons.clear,
+                  color: Colors.red,
+                  size: 100, // Make the cross bigger
+                ),
+              ),
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: IconButton(
+                icon: const Icon(Icons.edit, color: Colors.white),
+                onPressed: () {
+                  _editImageText(imageData);
+                },
+              ),
+            ),
+          ],
         ),
-        onDraggableCanceled: (velocity, offset) {
-          if (crossOutMode) {
-            return;
-          }
-        },
-        ignoringFeedbackSemantics: crossOutMode,
       ),
     );
+  }
+
+  Widget buildDraggableImage(ImageData imageData, {bool isInRow = false}) {
+    return (crossOutMode || editMode)
+        ? buildImage(imageData, isInRow: isInRow)
+        : Draggable<ImageData>(
+            data: imageData,
+            feedback: Material(
+              child: SizedBox(
+                width: 100,
+                height: 100,
+                child: Stack(
+                  children: [
+                    Column(
+                      children: [
+                        if (imageData.title.isNotEmpty)
+                          Text(
+                            imageData.title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        Expanded(
+                          child: Image.memory(
+                            imageData.bytes,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (imageData.crossedOut)
+                      const Center(
+                        child: Icon(
+                          Icons.clear,
+                          color: Colors.red,
+                          size: 100, // Make the cross bigger
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            childWhenDragging: Container(), // Display an empty container when dragging
+            child: buildImage(imageData, isInRow: isInRow),
+            onDraggableCanceled: (velocity, offset) {
+              if (crossOutMode || editMode) {
+                return;
+              }
+            },
+            ignoringFeedbackSemantics: crossOutMode || editMode,
+          );
   }
 
   Widget buildImageButtons() {
@@ -218,7 +281,7 @@ class TierListPageState extends State<TierListPage> {
       ),
       itemCount: images.length,
       itemBuilder: (context, index) {
-        return buildImage(images[index]);
+        return buildDraggableImage(images[index]);
       },
     );
   }
@@ -283,6 +346,8 @@ class ImageData {
   final Uint8List bytes;
   bool crossedOut;
   bool isBase64;
+  String text;
+  String title;
 
   ImageData(
     this.id,
@@ -290,6 +355,8 @@ class ImageData {
     required this.crossedOut,
     required this.isBase64,
     required this.bytes,
+    this.text = '',
+    this.title = '',
   });
 
   Map<String, dynamic> toJson() {
@@ -298,6 +365,8 @@ class ImageData {
       'src': src,
       'crossedOut': crossedOut,
       'isBase64': isBase64,
+      'text': text,
+      'title': title,
     };
   }
 }
@@ -305,11 +374,13 @@ class ImageData {
 class DraggableImage extends StatelessWidget {
   final ImageData imageData;
   final Function(ImageData) onDragComplete;
+  final Function(ImageData) onEditImageText;
 
   const DraggableImage({
     super.key,
     required this.imageData,
     required this.onDragComplete,
+    required this.onEditImageText,
   });
 
   @override
@@ -349,6 +420,20 @@ class DraggableImage extends StatelessWidget {
           ),
           border: Border.all(color: Colors.white, width: 2),
         ),
+        child: Stack(
+          children: [
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: IconButton(
+                icon: const Icon(Icons.edit, color: Colors.white),
+                onPressed: () {
+                  onEditImageText(imageData);
+                },
+              ),
+            ),
+          ],
+        ),
       ),
       onDragCompleted: () => onDragComplete(imageData),
     );
@@ -361,13 +446,17 @@ class CustomerCart extends StatelessWidget {
     required this.customer,
     this.highlighted = false,
     required this.crossOutMode,
+    required this.editMode,
     required this.onImageDropped,
+    required this.onEditImageText,
   });
 
   final Customer customer;
   final bool highlighted;
   final bool crossOutMode;
+  final bool editMode;
   final Function(ImageData) onImageDropped;
+  final Function(ImageData) onEditImageText;
 
   @override
   Widget build(BuildContext context) {
@@ -379,34 +468,125 @@ class CustomerCart extends StatelessWidget {
       height: 150, // Adjust height as needed
       child: DragTarget<ImageData>(
         builder: (context, candidateData, rejectedData) {
-          return Expanded(
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                ...customer.items.map((item) => DraggableImage(
-                      imageData: item,
-                      onDragComplete: (imageData) {
-                        // Handle drag completion if needed
-                      },
-                    )),
-              ],
-            ),
+          return ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              ...customer.items.map((item) => buildDraggableImage(item)),
+            ],
           );
         },
-        onWillAccept: (data) => !crossOutMode,
+        onWillAccept: (data) => !crossOutMode && !editMode,
         onAccept: (imageData) {
-          onImageDropped(imageData);
+          if (!crossOutMode && !editMode) {
+            onImageDropped(imageData);
+          }
         },
       ),
     );
   }
 
+  Widget buildDraggableImage(ImageData imageData) {
+    return crossOutMode || editMode
+        ? buildImage(imageData)
+        : Draggable<ImageData>(
+            data: imageData,
+            feedback: Material(
+              child: SizedBox(
+                width: 100,
+                height: 100,
+                child: Stack(
+                  children: [
+                    Column(
+                      children: [
+                        if (imageData.title.isNotEmpty)
+                          Text(
+                            imageData.title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        Expanded(
+                          child: Image.memory(
+                            imageData.bytes,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (imageData.crossedOut)
+                      const Center(
+                        child: Icon(
+                          Icons.clear,
+                          color: Colors.red,
+                          size: 100, // Make the cross bigger
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            childWhenDragging: Container(), // Display an empty container when dragging
+            child: buildImage(imageData),
+            onDraggableCanceled: (velocity, offset) {
+              if (crossOutMode || editMode) {
+                return;
+              }
+            },
+            ignoringFeedbackSemantics: crossOutMode || editMode,
+          );
+  }
+
   Widget buildImage(ImageData imageData) {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: Image.memory(
-        imageData.bytes, // Use the bytes property from ImageData
-        fit: BoxFit.cover,
+    return GestureDetector(
+      onTap: () {
+        if (crossOutMode) {
+          imageData.crossedOut = !imageData.crossedOut;
+        }
+      },
+      child: SizedBox(
+        width: 100,
+        height: 100,
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                if (imageData.title.isNotEmpty)
+                  Text(
+                    imageData.title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                Expanded(
+                  child: Image.memory(
+                    imageData.bytes,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ],
+            ),
+            if (imageData.crossedOut)
+              const Center(
+                child: Icon(
+                  Icons.clear,
+                  color: Colors.red,
+                  size: 100, // Make the cross bigger
+                ),
+              ),
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: IconButton(
+                icon: const Icon(Icons.edit, color: Colors.white),
+                onPressed: () {
+                  onEditImageText(imageData);
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -425,6 +605,88 @@ class PhotoViewPage extends StatelessWidget {
       ),
       body: PhotoView(
         imageProvider: MemoryImage(image.bytes),
+      ),
+    );
+  }
+}
+
+class TextEditorPage extends StatefulWidget {
+  final ImageData image;
+
+  const TextEditorPage({super.key, required this.image});
+
+  @override
+  _TextEditorPageState createState() => _TextEditorPageState();
+}
+
+class _TextEditorPageState extends State<TextEditorPage> {
+  late TextEditingController _titleController;
+  late TextEditingController _textController;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.image.title);
+    _textController = TextEditingController(text: widget.image.text);
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _textController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return WillPopScope(
+      onWillPop: () async {
+        widget.image.title = _titleController.text;
+        widget.image.text = _textController.text;
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('Edit Text for ${widget.image.src}'),
+          actions: [
+            IconButton(
+              icon: Image.memory(widget.image.bytes),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PhotoViewPage(image: widget.image),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              TextField(
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  hintText: 'Enter title here...',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: TextField(
+                  controller: _textController,
+                  maxLines: null,
+                  decoration: const InputDecoration(
+                    hintText: 'Enter text here...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
