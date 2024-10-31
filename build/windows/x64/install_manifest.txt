@@ -1,0 +1,12 @@
+C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/runner/Debug/data/icudtl.dat
+C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/runner/Debug/flutter_windows.dll
+C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/runner/Debug/data/flutter_assets/AssetManifest.bin
+C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/runner/Debug/data/flutter_assets/AssetManifest.bin.json
+C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/runner/Debug/data/flutter_assets/AssetManifest.json
+C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/runner/Debug/data/flutter_assets/FontManifest.json
+C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/runner/Debug/data/flutter_assets/fonts/MaterialIcons-Regular.otf
+C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/runner/Debug/data/flutter_assets/kernel_blob.bin
+C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/runner/Debug/data/flutter_assets/NOTICES
+C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/runner/Debug/data/flutter_assets/NOTICES.Z
+C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/runner/Debug/data/flutter_assets/packages/cupertino_icons/assets/CupertinoIcons.ttf
+C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/runner/Debug/data/flutter_assets/shaders/ink_sparkle.frag
