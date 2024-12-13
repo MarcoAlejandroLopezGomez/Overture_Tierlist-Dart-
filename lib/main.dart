@@ -8,6 +8,9 @@ import 'package:photo_view/photo_view.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:html' as html; // Add this import for web
+import 'package:uuid/uuid.dart';
+
+//Before you start add one day per day you have been working in this project: 38 days
 
 void main() {
   runApp(const MyApp());
@@ -49,7 +52,10 @@ class TierListPageState extends State<TierListPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => PhotoViewPage(image: image),
+        builder: (context) => PhotoViewPage(
+          image: image,
+          imageList: image.imageList,
+        ),
       ),
     );
   }
@@ -272,9 +278,9 @@ class TierListPageState extends State<TierListPage> {
           onPressed: saveTierList,
         ),
         IconButton(
-        icon: const Icon(Icons.upload_file, size: 50),
-        onPressed: uploadTierList,
-      ),
+          icon: const Icon(Icons.upload_file, size: 50),
+          onPressed: uploadTierList, // Ensure this method is correctly referenced
+        ),
       ],
     );
   }
@@ -302,14 +308,16 @@ class TierListPageState extends State<TierListPage> {
     if (pickedFiles != null) {
       setState(() {
         for (final file in pickedFiles.files) {
-          final bytes = file.bytes ?? Uint8List(0); // Provide a default value if bytes is null
+          final bytes = file.bytes ?? Uint8List(0);
+          final uniqueId = Uuid().v4(); // Generate unique ID
           final imageData = ImageData(
-            DateTime.now().millisecondsSinceEpoch.toString(),
+            uniqueId,
             file.name,
             bytes: bytes,
             crossedOut: false,
             isBase64: false,
           );
+          imageData.imageList.add(imageData); // Initialize imageList with the main image
           images.add(imageData);
         }
       });
@@ -325,6 +333,12 @@ Future<void> saveTierList() async {
       buffer.writeln('  Image: ${base64Encode(item.bytes)}');
       buffer.writeln('    Title: ${item.title}');
       buffer.writeln('    Text: ${item.text}');
+      buffer.writeln('    ImageList:');
+      for (final subItem in item.imageList) {
+        buffer.writeln('      SubImage: ${base64Encode(subItem.bytes)}');
+        buffer.writeln('        Title: ${subItem.title}');
+        buffer.writeln('        Text: ${subItem.text}');
+      }
     }
     buffer.writeln();
   }
@@ -370,23 +384,29 @@ Future<void> uploadTierList() async {
 void parseTierList(String content) {
   final lines = content.split('\n');
   Customer? currentCustomer;
+  ImageData? currentImage;
   images.clear();
   customers.forEach((customer) => customer.items.clear());
 
-  for (final line in lines) {
+  for (int i = 0; i < lines.length; i++) {
+    final line = lines[i];
     if (line.startsWith('Tier: ')) {
       final tierName = line.substring(6);
-      currentCustomer = customers.firstWhere((c) => c.name == tierName, orElse: () => Customer(name: tierName, items: [], color: Colors.grey));
-    } else if (line.startsWith('  Image: ') && currentCustomer != null) {
-      final imageBytes = base64Decode(line.substring(9));
-      final titleLine = lines[lines.indexOf(line) + 1];
-      final textLine = lines[lines.indexOf(line) + 2];
-      final title = titleLine.startsWith('    Title: ') ? titleLine.substring(11) : '';
-      final text = textLine.startsWith('    Text: ') ? textLine.substring(10) : '';
+      currentCustomer = customers.firstWhere(
+        (c) => c.name == tierName,
+        orElse: () => Customer(name: tierName, items: [], color: Colors.grey),
+      );
+    } else if (line.trimLeft().startsWith('Image: ') && currentCustomer != null) {
+      final imageBase64 = line.trimLeft().substring(7).trim();
+      final imageBytes = base64Decode(imageBase64);
+      final titleLine = lines[i + 1];
+      final textLine = lines[i + 2];
+      final title = titleLine.trimLeft().startsWith('Title: ') ? titleLine.trimLeft().substring(6) : '';
+      final text = textLine.trimLeft().startsWith('Text: ') ? textLine.trimLeft().substring(5) : '';
 
       final imageData = ImageData(
         DateTime.now().millisecondsSinceEpoch.toString(),
-        '', // src is not needed as we are using bytes
+        '',
         bytes: imageBytes,
         crossedOut: false,
         isBase64: true,
@@ -395,11 +415,34 @@ void parseTierList(String content) {
       );
 
       currentCustomer.items.add(imageData);
+      currentImage = imageData;
+      i += 2; // Skip the next two lines as they have been processed
+    } else if (line.trimLeft().startsWith('SubImage: ') && currentImage != null) {
+      final subImageBase64 = line.trimLeft().substring(9).trim();
+      final subImageBytes = base64Decode(subImageBase64);
+      final subTitleLine = lines[i + 1];
+      final subTextLine = lines[i + 2];
+      final subTitle = subTitleLine.trimLeft().startsWith('Title: ') ? subTitleLine.trimLeft().substring(6) : '';
+      final subText = subTextLine.trimLeft().startsWith('Text: ') ? subTextLine.trimLeft().substring(5) : '';
+
+      final subImageData = ImageData(
+        DateTime.now().millisecondsSinceEpoch.toString(),
+        '',
+        bytes: subImageBytes,
+        crossedOut: false,
+        isBase64: true,
+        title: subTitle,
+        text: subText,
+      );
+
+      currentImage.imageList.add(subImageData);
+      i += 2; // Skip the next two lines as they have been processed
     }
   }
 
   setState(() {});
 }
+
 }
 
 class Customer {
@@ -426,6 +469,7 @@ class ImageData {
   bool isBase64;
   String text;
   String title;
+  List<ImageData> imageList; // Add this line
 
   ImageData(
     this.id,
@@ -435,7 +479,8 @@ class ImageData {
     required this.bytes,
     this.text = '',
     this.title = '',
-  });
+    List<ImageData>? imageList,
+  }) : imageList = imageList ?? []; // Initialize imageList
 
   Map<String, dynamic> toJson() {
     return {
@@ -670,19 +715,94 @@ class CustomerCart extends StatelessWidget {
   }
 }
 
-class PhotoViewPage extends StatelessWidget {
+class PhotoViewPage extends StatefulWidget {
   final ImageData image;
+  final List<ImageData> imageList;
 
-  const PhotoViewPage({super.key, required this.image});
+  const PhotoViewPage({super.key, required this.image, required this.imageList});
+
+  @override
+  _PhotoViewPageState createState() => _PhotoViewPageState();
+}
+
+class _PhotoViewPageState extends State<PhotoViewPage> {
+  int currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    currentIndex = widget.imageList.indexWhere((img) => img.id == widget.image.id);
+    if (currentIndex < 0) currentIndex = 0;
+  }
+
+  void _addImages() async {
+    final pickedFiles = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: true,
+    );
+
+    if (pickedFiles != null) {
+      setState(() {
+        for (final file in pickedFiles.files) {
+          final bytes = file.bytes ?? Uint8List(0);
+          final uniqueId = Uuid().v4();
+          final imageData = ImageData(
+            uniqueId,
+            file.name,
+            bytes: bytes,
+            crossedOut: false,
+            isBase64: false,
+          );
+          widget.imageList.add(imageData); // Add to the image's own list
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final currentImage = widget.imageList[currentIndex];
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(image.src),
+        title: Text(currentImage.title),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: _addImages,
+          ),
+        ],
       ),
-      body: PhotoView(
-        imageProvider: MemoryImage(image.bytes),
+      body: Stack(
+        children: [
+          PhotoView(
+            imageProvider: MemoryImage(currentImage.bytes),
+          ),
+          Positioned(
+            left: 0,
+            top: MediaQuery.of(context).size.height / 2 - 24,
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back, size: 48),
+              onPressed: () {
+                setState(() {
+                  currentIndex = (currentIndex - 1 + widget.imageList.length) % widget.imageList.length;
+                });
+              },
+            ),
+          ),
+          Positioned(
+            right: 0,
+            top: MediaQuery.of(context).size.height / 2 - 24,
+            child: IconButton(
+              icon: const Icon(Icons.arrow_forward, size: 48),
+              onPressed: () {
+                setState(() {
+                  currentIndex = (currentIndex + 1) % widget.imageList.length;
+                });
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -728,12 +848,15 @@ class _TextEditorPageState extends State<TextEditorPage> {
           title: Text('Edit Text for ${widget.image.src}'),
           actions: [
             IconButton(
-              icon: Image.memory(widget.image.bytes),
+              icon: const Icon(Icons.photo),
               onPressed: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => PhotoViewPage(image: widget.image),
+                    builder: (context) => PhotoViewPage(
+                      image: widget.image,
+                      imageList: widget.image.imageList,
+                    ),
                   ),
                 );
               },

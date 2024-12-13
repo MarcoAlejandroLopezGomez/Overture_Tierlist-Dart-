@@ -1,0 +1,56 @@
+[33mcommit 02d16bd2099732b9d3a6c31fc83b13bf3d1ab791[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mMejoras[m[33m, [m[1;31morigin/main[m[33m, [m[1;32mmain[m[33m)[m
+Author: MarcoAlejandroLopezGomez <A01572601@tec.mx>
+Date:   Thu Oct 31 16:25:20 2024 -0600
+
+    Add initial web build files and configuration for new overscauting tierlist project.
+
+[33mcommit eaa87bb31e20f2f7a091ea4d0414ca5f3ff32203[m
+Merge: 69ee1ad d1989d7
+Author: Marco Alejandro López Gómez <A01572601@tec.mx>
+Date:   Thu Oct 31 16:08:43 2024 -0600
+
+    Merge pull request #2 from MarcoAlejandroLopezGomez/Alfa
+    
+    Alfa
+
+[33mcommit d1989d7274a6e2a455fcecd7bed39ad6c284ffe7[m[33m ([m[1;31morigin/Alfa[m[33m, [m[1;32mAlfa[m[33m)[m
+Author: MarcoAlejandroLopezGomez <A01572601@tec.mx>
+Date:   Thu Oct 31 15:55:47 2024 -0600
+
+    Update build artifacts and configuration files for make it a web page.
+
+[33mcommit 84975b0dc6ac25b2f2927cb8faf0d78c18411489[m
+Author: MarcoAlejandroLopezGomez <A01572601@tec.mx>
+Date:   Wed Oct 30 22:43:13 2024 -0600
+
+    Add file upload and download functionality to TierListPage
+
+[33mcommit 04a8ba12a3a30e50e75b483daf20a4e9ee243b7c[m
+Author: MarcoAlejandroLopezGomez <A01572601@tec.mx>
+Date:   Wed Oct 30 21:47:26 2024 -0600
+
+    Fix crossOutMode functionality in CustomerCart and TierListPage
+
+[33mcommit cf2da08d9b97e820871162d68a2066b322eed6c9[m
+Author: MarcoAlejandroLopezGomez <A01572601@tec.mx>
+Date:   Wed Oct 30 17:51:33 2024 -0600
+
+    Enhance CustomerCart and TierListPage to support crossOutMode(doesn't works) functionality
+
+[33mcommit 004e21807b95ddc64a0364044499a2856e06f03d[m
+Author: MarcoAlejandroLopezGomez <A01572601@tec.mx>
+Date:   Wed Oct 30 17:35:39 2024 -0600
+
+    Refactor CustomerCart widget to streamline crossOutMode handling and update asset reference in pubspec.yaml
+
+[33mcommit ba5124023bbdf18e2ebaabdb87a12f5f3bce4676[m[33m ([m[1;31morigin/Beta[m[33m, [m[1;32mBeta[m[33m)[m
+Author: MarcoAlejandroLopezGomez <A01572601@tec.mx>
+Date:   Wed Oct 30 17:21:14 2024 -0600
+
+    Add red_cross.png asset to pubspec.yaml still doesn't work the cross out mode correctly
+
+[33mcommit 69ee1ad659616261c4e322e141ca8584ca27bb69[m
+Author: MarcoAlejandroLopezGomez <A01572601@tec.mx>
+Date:   Sun Oct 27 10:23:17 2024 -0600
+
+    "Stable version" of teh tierlist in Dart.
