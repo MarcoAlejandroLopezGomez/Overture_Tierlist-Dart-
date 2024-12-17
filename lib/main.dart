@@ -76,6 +76,15 @@ class TierListPageState extends State<TierListPage> {
     });
   }
 
+  void _deleteImage(ImageData image) {
+    setState(() {
+      for (var customer in customers) {
+        customer.items.remove(image);
+      }
+      images.remove(image);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -137,6 +146,7 @@ class TierListPageState extends State<TierListPage> {
                       }
                     },
                     onEditImageText: _editImageText,
+                    onDeleteImage: _deleteImage, // Pass the delete function
                   ),
                 ),
               ],
@@ -196,6 +206,16 @@ class TierListPageState extends State<TierListPage> {
                 icon: const Icon(Icons.edit, color: Colors.white),
                 onPressed: () {
                   _editImageText(imageData);
+                },
+              ),
+            ),
+            Positioned(
+              top: 4,
+              right: 4,
+              child: IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                onPressed: () {
+                  _deleteImage(imageData);
                 },
               ),
             ),
@@ -572,6 +592,7 @@ class CustomerCart extends StatelessWidget {
     required this.editMode,
     required this.onImageDropped,
     required this.onEditImageText,
+    required this.onDeleteImage, // Add this line
   });
 
   final Customer customer;
@@ -580,6 +601,7 @@ class CustomerCart extends StatelessWidget {
   final bool editMode;
   final Function(ImageData) onImageDropped;
   final Function(ImageData) onEditImageText;
+  final Function(ImageData) onDeleteImage; // Add this line
 
   @override
   Widget build(BuildContext context) {
@@ -594,7 +616,7 @@ class CustomerCart extends StatelessWidget {
           return ListView(
             scrollDirection: Axis.horizontal,
             children: [
-              ...customer.items.map((item) => buildDraggableImage(item)),
+              ...customer.items.map((item) => buildDraggableImage(item, context)),
             ],
           );
         },
@@ -608,9 +630,9 @@ class CustomerCart extends StatelessWidget {
     );
   }
 
-  Widget buildDraggableImage(ImageData imageData) {
+  Widget buildDraggableImage(ImageData imageData, BuildContext context) {
     return crossOutMode || editMode
-        ? buildImage(imageData)
+        ? buildImage(imageData, context)
         : Draggable<ImageData>(
             data: imageData,
             feedback: Material(
@@ -650,7 +672,7 @@ class CustomerCart extends StatelessWidget {
               ),
             ),
             childWhenDragging: Container(), // Display an empty container when dragging
-            child: buildImage(imageData),
+            child: buildImage(imageData, context),
             onDraggableCanceled: (velocity, offset) {
               if (crossOutMode || editMode) {
                 return;
@@ -660,7 +682,7 @@ class CustomerCart extends StatelessWidget {
           );
   }
 
-  Widget buildImage(ImageData imageData) {
+  Widget buildImage(ImageData imageData, BuildContext context) {
     return GestureDetector(
       onTap: () {
         if (crossOutMode) {
@@ -705,6 +727,17 @@ class CustomerCart extends StatelessWidget {
                 icon: const Icon(Icons.edit, color: Colors.white),
                 onPressed: () {
                   onEditImageText(imageData);
+                },
+              ),
+            ),
+            Positioned(
+              top: 4,
+              right: 4,
+              child: IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                onPressed: () {
+                  onDeleteImage(imageData);
+                  (context as Element).markNeedsBuild();
                 },
               ),
             ),
