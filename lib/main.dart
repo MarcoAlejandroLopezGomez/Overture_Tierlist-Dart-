@@ -10,8 +10,11 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:html' as html; // Add this import for web
 import 'package:flutter/services.dart'; // Add this import for LogicalKeyboardKey
 import 'package:uuid/uuid.dart';
+import 'qr_scanner.dart'; // Agregada la importación para Qr Scanner
 
-//Before you start add one day per day you have been working in this project: 41 days
+class BoldIntent extends Intent {
+  const BoldIntent();
+}
 
 void main() {
   runApp(const MyApp());
@@ -93,6 +96,20 @@ class TierListPageState extends State<TierListPage> {
       appBar: AppBar(
         title: const Text('OVERTURE PRESENTS ROBOTOS TIER LIST'),
         backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => OverScoutingApp()),
+              );
+            },
+            child: const Text(
+              'Qr Scanner',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -106,59 +123,60 @@ class TierListPageState extends State<TierListPage> {
     );
   }
 
-  Widget buildPickRows() {
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.6, // Adjust the height as needed
-      child: Column(
-        children: customers.map((customer) {
-          return Expanded(
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  color: customer.color,
-                  child: Text(
-                    customer.name,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+// Modified buildPickRows for uniform customer header size and alignment:
+Widget buildPickRows() {
+  return Container(
+    height: MediaQuery.of(context).size.height * 0.6, // Fixed overall row height
+    child: Column(
+      children: customers.map((customer) {
+        return Expanded(
+          child: Row(
+            children: [
+              Container(
+                width: 120,               // Fixed width so names align
+                height: 50,               // Fixed height for uniformity
+                alignment: Alignment.center,
+                color: customer.color,
+                child: Text(
+                  customer.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: CustomerCart(
-                    customer: customer,
-                    highlighted: false,
-                    crossOutMode: crossOutMode,
-                    editMode: editMode,
-                    onImageDropped: (item) {
-                      if (!crossOutMode && !editMode) {
-                        setState(() {
-                          // Remove the image from its current location
-                          for (var c in customers) {
-                            c.items.remove(item);
-                          }
-                          if (images.contains(item)) {
-                            images.remove(item);
-                          }
-                          
-                          // Add to the new customer
-                          customer.items.add(item);
-                        });
-                      }
-                    },
-                    onEditImageText: _editImageText,
-                    onDeleteImage: _deleteImage, // Pass the delete function
-                  ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: CustomerCart(
+                  customer: customer,
+                  highlighted: false,
+                  crossOutMode: crossOutMode,
+                  editMode: editMode,
+                  onImageDropped: (item) {
+                    if (!crossOutMode && !editMode) {
+                      setState(() {
+                        // Remove the image from its current location and add to new customer
+                        for (var c in customers) {
+                          c.items.remove(item);
+                        }
+                        if (images.contains(item)) {
+                          images.remove(item);
+                        }
+                        customer.items.add(item);
+                      });
+                    }
+                  },
+                  onEditImageText: _editImageText,
+                  onDeleteImage: _deleteImage,
                 ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    ),
+  );
+}
 
   Widget buildImage(ImageData imageData, {bool isInRow = false}) {
     return GestureDetector(
@@ -355,16 +373,14 @@ Future<void> saveTierList() async {
     for (final item in customer.items) {
       buffer.writeln('  Image: ${base64Encode(item.bytes)}');
       buffer.writeln('    Title: ${item.title}');
-      buffer.writeln('    Text: ${item.text}');
+      buffer.writeln('    Text: ${jsonEncode(item.text)}'); // Save raw text
       buffer.writeln('    DriverSkills: ${item.driverSkills}'); // Add this
-      buffer.writeln('    BoldRanges: ${item.boldRanges.map((r) => '${r[0]}-${r[1]}').join(',')}'); // Add this
       buffer.writeln('    ImageList:');
       for (final subItem in item.imageList) {
         buffer.writeln('      SubImage: ${base64Encode(subItem.bytes)}');
         buffer.writeln('        Title: ${subItem.title}');
-        buffer.writeln('        Text: ${subItem.text}');
+        buffer.writeln('        Text: ${jsonEncode(subItem.text)}'); // Save raw text
         buffer.writeln('        DriverSkills: ${subItem.driverSkills}'); // Add this
-        buffer.writeln('        BoldRanges: ${subItem.boldRanges.map((r) => '${r[0]}-${r[1]}').join(',')}'); // Add this
       }
     }
     buffer.writeln();
@@ -429,10 +445,8 @@ void parseTierList(String content) {
       final titleLine = lines[i + 1];
       final textLine = lines[i + 2];
       final driverSkillsLine = lines[i + 3]; // Add this
-      final boldRangesLine = lines[i + 4]; // Add this
-      final boldRanges = parseBoldRanges(boldRangesLine);
       final title = titleLine.trimLeft().startsWith('Title: ') ? titleLine.trimLeft().substring(6) : '';
-      final text = textLine.trimLeft().startsWith('Text: ') ? textLine.trimLeft().substring(5) : '';
+      final text = textLine.trimLeft().startsWith('Text: ') ? jsonDecode(textLine.trimLeft().substring(5)) as String : '';
       final parsedSkills = driverSkillsLine.trimLeft().startsWith('DriverSkills: ')
           ? double.tryParse(driverSkillsLine.trimLeft().substring(14)) ?? 0.0
           : 0.0;
@@ -446,21 +460,18 @@ void parseTierList(String content) {
         title: title,
         text: text,
       )..driverSkills = parsedSkills; // Add this
-      imageData.boldRanges = boldRanges; // Add this
 
       currentCustomer.items.add(imageData);
       currentImage = imageData;
-      i += 4; // Skip the next four lines as they have been processed
+      i += 3; // Skip the next three lines as they have been processed
     } else if (line.trimLeft().startsWith('SubImage: ') && currentImage != null) {
       final subImageBase64 = line.trimLeft().substring(9).trim();
       final subImageBytes = base64Decode(subImageBase64);
       final subTitleLine = lines[i + 1];
       final subTextLine = lines[i + 2];
       final subDriverSkillsLine = lines[i + 3]; // Add this
-      final subBoldRangesLine = lines[i + 4]; // Add this
-      final subBoldRanges = parseBoldRanges(subBoldRangesLine);
       final subTitle = subTitleLine.trimLeft().startsWith('Title: ') ? subTitleLine.trimLeft().substring(6) : '';
-      final subText = subTextLine.trimLeft().startsWith('Text: ') ? subTextLine.trimLeft().substring(5) : '';
+      final subText = subTextLine.trimLeft().startsWith('Text: ') ? jsonDecode(subTextLine.trimLeft().substring(5)) as String : '';
       final subParsedSkills = subDriverSkillsLine.trimLeft().startsWith('DriverSkills: ')
           ? double.tryParse(subDriverSkillsLine.trimLeft().substring(14)) ?? 0.0
           : 0.0;
@@ -474,24 +485,13 @@ void parseTierList(String content) {
         title: subTitle,
         text: subText,
       )..driverSkills = subParsedSkills; // Add this
-      subImageData.boldRanges = subBoldRanges; // Add this
 
       currentImage.imageList.add(subImageData);
-      i += 4; // Skip the next four lines as they have been processed
+      i += 3; // Skip the next three lines as they have been processed
     }
   }
 
   setState(() {});
-}
-
-List<List<int>> parseBoldRanges(String line) {
-  if (!line.trimLeft().startsWith('BoldRanges: ')) return [];
-  final part = line.trimLeft().substring(11).trim();
-  if (part.isEmpty) return [];
-  return part.split(',').map((pair) {
-    final nums = pair.split('-');
-    return [int.parse(nums[0]), int.parse(nums[1])];
-  }).toList();
 }
 
 }
@@ -522,7 +522,6 @@ class ImageData {
   String title;
   List<ImageData> imageList; // Add this line
   double driverSkills = 0.0; // Add this
-  List<List<int>> boldRanges = []; // Add this
 
   ImageData(
     this.id,
@@ -891,70 +890,6 @@ class _PhotoViewPageState extends State<PhotoViewPage> {
   }
 }
 
-class BoldIntent extends Intent {
-  const BoldIntent();
-}
-
-class BoldTextEditingController extends TextEditingController {
-  bool isBold = false;
-  int _previousLength = 0;
-  final List<TextRange> _boldRanges = [];
-
-  List<TextRange> get boldRanges => _boldRanges;
-
-  @override
-  set text(String newText) {
-    super.text = newText;
-    _previousLength = newText.length;
-  }
-
-  void toggleBold() {
-    isBold = !isBold;
-  }
-
-  void onTextChanged(String newText) {
-    if (newText.length > _previousLength && isBold) {
-      // Mark just-added characters as bold
-      _boldRanges.add(TextRange(start: _previousLength, end: newText.length));
-    } else if (newText.length < _previousLength) {
-      // Remove bold markers that extend beyond the new length
-      _boldRanges.removeWhere((range) => range.end > newText.length);
-    }
-    _previousLength = newText.length;
-  }
-
-  @override
-  TextSpan buildTextSpan({required BuildContext context, TextStyle? style, required bool withComposing}) {
-    final children = <InlineSpan>[];
-    int currentIndex = 0;
-
-    _boldRanges.sort((a, b) => a.start.compareTo(b.start));
-
-    for (final range in _boldRanges) {
-      if (range.start > currentIndex) {
-        children.add(TextSpan(
-          text: text.substring(currentIndex, range.start),
-          style: style,
-        ));
-      }
-      children.add(TextSpan(
-        text: text.substring(range.start, range.end),
-        style: style?.copyWith(fontWeight: FontWeight.bold),
-      ));
-      currentIndex = range.end;
-    }
-
-    if (currentIndex < text.length) {
-      children.add(TextSpan(
-        text: text.substring(currentIndex),
-        style: style,
-      ));
-    }
-
-    return TextSpan(style: style, children: children);
-  }
-}
-
 class TextEditorPage extends StatefulWidget {
   final ImageData image;
 
@@ -964,17 +899,28 @@ class TextEditorPage extends StatefulWidget {
   _TextEditorPageState createState() => _TextEditorPageState();
 }
 
+// ======================================================================
+// Modified _TextEditorPageState to auto-scroll the text cursor as user types
 class _TextEditorPageState extends State<TextEditorPage> {
+  bool _isBold = false;
   late TextEditingController _titleController;
-  late final BoldTextEditingController _boldTextController = BoldTextEditingController();
-  bool _isBold = false; // Add this
+  late TextEditingController _textController; // Simplified
   late final TextEditingController _driverSkillsController; // Add this
+  late final ScrollController _textScrollController; // Scroll controller for text field auto-scroll
 
   @override
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.image.title);
-    _boldTextController.text = widget.image.text;
+    _textController = TextEditingController(text: widget.image.text);
+    _textScrollController = ScrollController(); // Initialize the scroll controller
+    // Listener updates the image text and auto-scrolls to show the latest text
+    _textController.addListener(() {
+      widget.image.text = _textController.text;
+      if (_textScrollController.hasClients) {
+        _textScrollController.jumpTo(_textScrollController.position.maxScrollExtent);
+      }
+    });
     _driverSkillsController = TextEditingController(
       text: widget.image.driverSkills.toString(),
     );
@@ -988,42 +934,59 @@ class _TextEditorPageState extends State<TextEditorPage> {
         widget.image.driverSkills = parsed;
       }
     });
-    // Restore bold ranges
-    for (final range in widget.image.boldRanges) {
-      _boldTextController.isBold = true;
-      _boldTextController.text = _boldTextController.text; // Force update
-      _boldTextController.onTextChanged(_boldTextController.text);
-      _boldTextController.toggleBold(); // Turn off to set next range
-      _boldTextController.toggleBold(); // Turn on again
-      _boldTextController.selection = TextSelection(baseOffset: range[0], extentOffset: range[1]);
-      _boldTextController.onTextChanged(_boldTextController.text);
-    }
   }
 
   @override
   void dispose() {
+    // Ensure full text is saved before disposing controllers.
+    widget.image.text = _textController.text;
     _titleController.dispose();
-    _boldTextController.dispose();
+    _textController.dispose();
     _driverSkillsController.dispose();
+    _textScrollController.dispose(); // Dispose scroll controller to free resources
     super.dispose();
   }
 
+  // New helper method: builds a TextSpan with bold styling for text between '**'
+  TextSpan _buildStyledText(String text) {
+    final List<TextSpan> spans = [];
+    final pattern = RegExp(r'(\*\*)(.*?)\1');
+    int lastIndex = 0;
+    for (final m in pattern.allMatches(text)) {
+      if (m.start > lastIndex) {
+        spans.add(TextSpan(text: text.substring(lastIndex, m.start)));
+      }
+      // Add opening markers
+      spans.add(const TextSpan(text: '**'));
+      // Add bold text
+      spans.add(TextSpan(text: m.group(2), style: const TextStyle(fontWeight: FontWeight.bold)));
+      // Add closing markers
+      spans.add(const TextSpan(text: '**'));
+      lastIndex = m.end;
+    }
+    if (lastIndex < text.length) {
+      spans.add(TextSpan(text: text.substring(lastIndex)));
+    }
+    return TextSpan(style: const TextStyle(color: Colors.white, fontSize: 16), children: spans);
+  }
+  
   @override
   Widget build(BuildContext context) {
     return Shortcuts(
+      // ...existing code...
       shortcuts: {
         LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyB): const BoldIntent(),
       },
       child: Actions(
+        // ...existing code...
         actions: {
           BoldIntent: CallbackAction<BoldIntent>(
             onInvoke: (BoldIntent intent) {
-              setState(() {
-                _isBold = !_isBold;
-                _boldTextController.toggleBold();
-              });
-              return null;
-            },
+                            setState(() {
+                              _isBold = !_isBold;
+                            });
+                            return null;
+                          },
           ),
         },
         child: Focus(
@@ -1031,13 +994,12 @@ class _TextEditorPageState extends State<TextEditorPage> {
           child: WillPopScope(
             onWillPop: () async {
               widget.image.title = _titleController.text;
-              widget.image.text = _boldTextController.text;
-              // Save updated bold ranges
-              widget.image.boldRanges = _boldTextController.boldRanges.map((r) => [r.start, r.end]).toList();
+              widget.image.text = _textController.text;
               return true;
             },
             child: Scaffold(
               appBar: AppBar(
+                // ...existing code...
                 title: Row(
                   children: [
                     Text('Edit Text for ${widget.image.src}'),
@@ -1091,16 +1053,39 @@ class _TextEditorPageState extends State<TextEditorPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Expanded(
-                      child: TextField(
-                        controller: _boldTextController,
-                        onChanged: _boldTextController.onTextChanged,
-                        maxLines: null,
-                        decoration: const InputDecoration(
-                          hintText: 'Enter text here...',
-                          border: OutlineInputBorder(),
+                    // Replace plain text field with a Stack that overlays styled text
+                    Stack(
+                      children: [
+                        // RichText displays styled text (with markers) in the background
+                        Positioned.fill(
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(12),
+                            child: RichText(
+                              text: _buildStyledText(_textController.text),
+                            ),
+                          ),
                         ),
-                      ),
+                        // Editable text field with transparent text so input is preserved
+                        TextField(
+                          controller: _textController,
+                          scrollController: _textScrollController, // Enables auto-scroll based on text length
+                          maxLines: null,
+                          style: const TextStyle(
+                            color: Colors.transparent,
+                            // Ensures caret and selection remain visible
+                            backgroundColor: Colors.transparent,
+                          ),
+                          cursorColor: Colors.white,
+                          decoration: const InputDecoration(
+                            border: OutlineInputBorder(),
+                            hintText: 'Enter text here... use **bold** for bold',
+                          ),
+                          // Update UI on changes to refresh styling
+                          onChanged: (value) {
+                            setState(() {});
+                          },
+                        ),
+                      ],
                     ),
                   ],
                 ),
