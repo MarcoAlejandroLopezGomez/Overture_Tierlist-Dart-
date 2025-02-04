@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
@@ -52,6 +53,8 @@ class _OverScoutingAppState extends State<OverScoutingApp> {
 
   // Controlador para el área de texto principal
   final TextEditingController _textController = TextEditingController();
+  // Add a FocusNode for the MainTextArea
+  final FocusNode _textFocusNode = FocusNode();
 
   // Variable que almacena el mensaje de estado
   String statusMessage = "Status messages will appear here.";
@@ -206,7 +209,36 @@ class _OverScoutingAppState extends State<OverScoutingApp> {
       );
       return;
     }
-
+    
+    if (kIsWeb) {
+      // Web: generate CSV content and download
+      List<String> lines = content.split('\n');
+      List<List<String>> dataList = lines.where((line) => line.isNotEmpty)
+          .map((line) => line.split('\t')).toList();
+      String csvContent = dataList.map((row) => row.join(',')).join('\n');
+      
+      // Trigger CSV download
+      final csvBlob = html.Blob([csvContent], 'text/csv');
+      final csvUrl = html.Url.createObjectUrlFromBlob(csvBlob);
+      final csvAnchor = html.AnchorElement(href: csvUrl)
+        ..setAttribute("download", "data.csv")
+        ..click();
+      html.Url.revokeObjectUrl(csvUrl);
+      
+      // Web: generate TXT content by replacing tabs with commas and download
+      String txtContent = content.replaceAll('\t', ',');
+      final txtBlob = html.Blob([txtContent], 'text/plain');
+      final txtUrl = html.Url.createObjectUrlFromBlob(txtBlob);
+      final txtAnchor = html.AnchorElement(href: txtUrl)
+        ..setAttribute("download", "data.txt")
+        ..click();
+      html.Url.revokeObjectUrl(txtUrl);
+      
+      updateStatus("Data saved to CSV and TXT successfully.");
+      return;
+    }
+    
+    // Existing mobile logic:
     // Utiliza file_picker para pedirle al usuario la ubicación y nombre del archivo CSV
     String? selectedPath = await FilePicker.platform.saveFile(
       dialogTitle: 'Save CSV',
@@ -216,7 +248,7 @@ class _OverScoutingAppState extends State<OverScoutingApp> {
     );
 
     if (selectedPath == null) {
-      updateStatus("Save operation cancelled.", displayInMainTextArea: true);
+      updateStatus("Save operation cancelled.");
       return;
     }
     String exportFilenameCsv = selectedPath;
@@ -234,10 +266,9 @@ class _OverScoutingAppState extends State<OverScoutingApp> {
       String csvContent = dataList.map((row) => row.join(',')).join('\n');
       await csvFile.writeAsString(csvContent);
 
-      // Guarda el archivo TXT (reemplazando tabulaciones por comas)
+      // Guarda el archivo TXT manteniendo las tabulaciones
       File txtFile = File(exportFilenameTxt);
-      String txtContent = content.replaceAll('\t', ',');
-      await txtFile.writeAsString(txtContent);
+      await txtFile.writeAsString(content);
 
       // Muestra un diálogo de éxito
       showDialog(
@@ -257,7 +288,7 @@ class _OverScoutingAppState extends State<OverScoutingApp> {
           );
         },
       );
-      updateStatus("Data saved to CSV and TXT successfully.", displayInMainTextArea: true);
+      updateStatus("Data saved to CSV and TXT successfully.");
     } catch (e) {
       // En caso de error, muestra un diálogo y actualiza el mensaje de estado
       showDialog(
@@ -277,7 +308,7 @@ class _OverScoutingAppState extends State<OverScoutingApp> {
           );
         },
       );
-      updateStatus("Failed to save files: $e", displayInMainTextArea: true);
+      updateStatus("Failed to save files: $e");
     }
   }
 
@@ -355,7 +386,7 @@ Future<void> saveInExcel() async {
       if (selectedPath != null) {
         File file = File(selectedPath);
         await file.writeAsBytes(fileBytes, flush: true); // Asegura que se escriban todos los bytes
-        updateStatus("Excel file saved successfully.", displayInMainTextArea: true);
+        updateStatus("Excel file saved successfully.");
       }
     }
   } catch (e) {
@@ -375,7 +406,7 @@ Future<void> saveInExcel() async {
         );
       },
     );
-    updateStatus("Failed to save Excel file: $e", displayInMainTextArea: true);
+    updateStatus("Failed to save Excel file: $e");
   }
 }
 
@@ -384,6 +415,8 @@ Future<void> saveInExcel() async {
   void dispose() {
     autosaveTimer?.cancel();
     _textController.dispose();
+    // Dispose the added FocusNode
+    _textFocusNode.dispose();
     super.dispose();
   }
 
@@ -426,14 +459,30 @@ Future<void> saveInExcel() async {
               ),
             ),
             SizedBox(height: 10),
-            // Área principal de texto con scroll para ingresar datos
+            // Wrap the MainTextArea with RawKeyboardListener to capture Tab key
             Expanded(
-              child: TextField(
-                controller: _textController,
-                maxLines: null,
-                decoration: InputDecoration(
-                  border: OutlineInputBorder(),
-                  hintText: "Ingrese los datos aquí...",
+              child: RawKeyboardListener(
+                focusNode: _textFocusNode,
+                onKey: (RawKeyEvent event) {
+                  // Insert tab on key down if Tab is pressed
+                  if (event is RawKeyDownEvent && event.logicalKey == LogicalKeyboardKey.tab) {
+                    final text = _textController.text;
+                    final selection = _textController.selection;
+                    final newText = text.replaceRange(selection.start, selection.end, "\t");
+                    final newPosition = selection.start + 1;
+                    _textController.value = TextEditingValue(
+                      text: newText,
+                      selection: TextSelection.collapsed(offset: newPosition),
+                    );
+                  }
+                },
+                child: TextField(
+                  controller: _textController,
+                  maxLines: null,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(),
+                    hintText: "Ingrese los datos aquí...",
+                  ),
                 ),
               ),
             ),
