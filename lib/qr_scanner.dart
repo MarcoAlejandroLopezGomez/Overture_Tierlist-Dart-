@@ -7,7 +7,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:excel/excel.dart' as ex; // Paquete para generar archivos Excel
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:html' as html; // Only used on web
-import 'dart:typed_data';
 import 'main.dart'; // Agrega esta línea para navegar a TierListPage
 
 /// Función principal que arranca la aplicación.
@@ -37,7 +36,7 @@ class OverScoutingApp extends StatefulWidget {
 
 class _OverScoutingAppState extends State<OverScoutingApp> {
   // ASCII art que se mostrará en la parte superior
-  final String asciiArt = """
+  final String asciiArt = r"""
         
     .___                 ____                  _   _                ___       
   ../ _ \__   _____ _ __/ ___|  ___ __ _ _   _| |_(_)_ __   __ _   / _ \ _ __ 
@@ -45,10 +44,11 @@ class _OverScoutingAppState extends State<OverScoutingApp> {
   .| |_| |\ V /  __/ |   ___) | (_| (_| | |_| | |_| | | | | (_| | | |_| | |   
     \___/  \_/ \___|_|  |____/ \___\__,_|\__,_|\__|_|_| |_|\__, |  \__\_\_|   
                                                           |___/              
-        by FIRST FRC Team Overture - 7421        
-
-        Bienvenido a OverScouting Qr, la herramienta de compilación de datos por QR.
-        Agradecemos la aplicación de QRScout de Red Hawk Robotics 2713.
+      by FIRST FRC Team Overture - 7421        
+        
+      Bienvenido a OverScouting Qr, la herramienta de compilación de datos por QR.
+      Agradecemos la aplicación de QRScout de Red Hawk Robotics 2713.
+      Ahora traucida a Dart.
   """;
 
   // Controlador para el área de texto principal
