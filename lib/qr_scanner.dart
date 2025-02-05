@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:excel/excel.dart' as ex; // Paquete para generar archivos Excel
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:html' as html; // Only used on web
+import 'package:qr_code_scanner/qr_code_scanner.dart';  // Import for QR code scanning
 import 'main.dart'; // Agrega esta línea para navegar a TierListPage
 
 /// Función principal que arranca la aplicación.
@@ -37,14 +38,13 @@ class OverScoutingApp extends StatefulWidget {
 class _OverScoutingAppState extends State<OverScoutingApp> {
   // ASCII art que se mostrará en la parte superior
   final String asciiArt = r"""
-        
     .___                 ____                  _   _                ___       
   ../ _ \__   _____ _ __/ ___|  ___ __ _ _   _| |_(_)_ __   __ _   / _ \ _ __ 
   .| | | \ \ / / _ \ '__\___ \ / __/ _` | | | | __| | '_ \ / _` | | | | | '__|
   .| |_| |\ V /  __/ |   ___) | (_| (_| | |_| | |_| | | | | (_| | | |_| | |   
     \___/  \_/ \___|_|  |____/ \___\__,_|\__,_|\__|_|_| |_|\__, |  \__\_\_|   
-                                                          |___/              
-      by FIRST FRC Team Overture - 7421        
+                                                            |___/             
+    by FIRST FRC Team Overture - 7421        
         
       Bienvenido a OverScouting Qr, la herramienta de compilación de datos por QR.
       Agradecemos la aplicación de QRScout de Red Hawk Robotics 2713.
@@ -74,6 +74,37 @@ class _OverScoutingAppState extends State<OverScoutingApp> {
   // Directorio de documentos de la aplicación
   late Directory appDocDir;
 
+  bool isCameraMode = false; // New state flag
+  final GlobalKey qrKey = GlobalKey(debugLabel: 'QR'); // New QRView key
+  QRViewController? qrController; // New controller
+
+  // New function to toggle camera preview mode
+  void toggleCameraMode() {
+    setState(() {
+      isCameraMode = !isCameraMode;
+    });
+  }
+
+  // New function to handle QRView creation
+  void _onQRViewCreated(QRViewController controller) {
+    qrController = controller;
+    controller.scannedDataStream.listen((scanData) {
+      // Append scanned QR data
+      if (scanData.code != null && scanData.code!.isNotEmpty) {
+        onQRCodeScanned(scanData.code!);
+      }
+    });
+  }
+
+  // New function to handle scanned QR code results
+  void onQRCodeScanned(String code) {
+    setState(() {
+      _textController.text += "\n" + code;
+      dataHistory.add(_textController.text); // Update history with the new state
+    });
+    // Ensure focus remains in the MainTextArea
+    _textFocusNode.requestFocus();
+  }
 
   /// Inicializa la aplicación: obtiene el directorio de documentos,
   /// carga datos existentes y arranca el temporizador de autosave.
@@ -413,6 +444,7 @@ Future<void> saveInExcel() async {
 
   @override
   void dispose() {
+    qrController?.dispose();
     autosaveTimer?.cancel();
     _textController.dispose();
     // Dispose the added FocusNode
@@ -445,19 +477,51 @@ Future<void> saveInExcel() async {
         padding: const EdgeInsets.all(10.0),
         child: Column(
           children: [
-            // Área para mostrar el ASCII art en un contenedor scrollable
-            Container(
-              height: 200,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.black),
-              ),
-              child: SingleChildScrollView(
-                child: Text(
-                  asciiArt,
-                  style: TextStyle(fontFamily: 'monospace'),
+            // Modified container: display either ASCII art or camera preview
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(
+                  onPressed: toggleCameraMode,
+                  child: Text(isCameraMode ? "Mostrar ASCII" : "Usar Cámara"),
                 ),
-              ),
+              ],
             ),
+            isCameraMode
+                ? Container(
+                    height: 200,
+                    color: Colors.black,
+                    child: kIsWeb
+                        ? Center(
+                            child: Text(
+                              "Camera scanning not supported on web.",
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          )
+                        : QRView(
+                            key: qrKey,
+                            onQRViewCreated: _onQRViewCreated,
+                            overlay: QrScannerOverlayShape(
+                              borderColor: Colors.red,
+                              borderRadius: 10,
+                              borderLength: 30,
+                              borderWidth: 10,
+                              cutOutSize: 150,
+                            ),
+                          ),
+                  )
+                : Container(
+                    height: 200,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.black),
+                    ),
+                    child: SingleChildScrollView(
+                      child: Text(
+                        asciiArt,
+                        style: TextStyle(fontFamily: 'monospace'),
+                      ),
+                    ),
+                  ),
             SizedBox(height: 10),
             // Wrap the MainTextArea with RawKeyboardListener to capture Tab key
             Expanded(
@@ -474,6 +538,8 @@ Future<void> saveInExcel() async {
                       text: newText,
                       selection: TextSelection.collapsed(offset: newPosition),
                     );
+                    // Re-request focus so the text field remains active
+                    _textFocusNode.requestFocus();
                   }
                 },
                 child: TextField(
@@ -487,7 +553,7 @@ Future<void> saveInExcel() async {
               ),
             ),
             SizedBox(height: 10),
-            // Fila de botones para las acciones: Add Entry, Undo, Save CSV y Save In Excel
+            // Fila de botones para las acciones: Undo, Save CSV y Save In Excel
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
