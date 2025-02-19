@@ -505,13 +505,6 @@ Future<void> saveInExcel() async {
                         : QRView(
                             key: qrKey,
                             onQRViewCreated: _onQRViewCreated,
-                            overlay: QrScannerOverlayShape(
-                              borderColor: Colors.red,
-                              borderRadius: 10,
-                              borderLength: 30,
-                              borderWidth: 10,
-                              cutOutSize: 150,
-                            ),
                           ),
                   )
                 : Container(

@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:image/image.dart' as img;
+//import 'package:image/image.dart' as img;
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:photo_view/photo_view.dart';
