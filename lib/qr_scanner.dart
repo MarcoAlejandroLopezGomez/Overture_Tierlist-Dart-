@@ -9,6 +9,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:html' as html; // Only used on web
 import 'package:qr_code_scanner/qr_code_scanner.dart';  // Import for QR code scanning
 import 'main.dart'; // Agrega esta línea para navegar a TierListPage
+import 'dart:ui' as ui; // New import for web view registry
+import 'dart:js' as js; // New import for calling jsQR
 
 /// Función principal que arranca la aplicación.
 void main() {
@@ -74,9 +76,9 @@ class _OverScoutingAppState extends State<OverScoutingApp> {
   // Directorio de documentos de la aplicación
   late Directory appDocDir;
 
-  bool isCameraMode = false; // New state flag
-  final GlobalKey qrKey = GlobalKey(debugLabel: 'QR'); // New QRView key
-  QRViewController? qrController; // New controller
+  bool isCameraMode = false; // State flag
+  final GlobalKey qrKey = GlobalKey(debugLabel: 'QR'); // Still used for mobile
+  QRViewController? qrController; // Mobile QR controller
 
   // New function to toggle camera preview mode
   void toggleCameraMode() {
@@ -96,13 +98,15 @@ class _OverScoutingAppState extends State<OverScoutingApp> {
     });
   }
 
-  // New function to handle scanned QR code results
+  // Modified function to handle scanned QR code results:
   void onQRCodeScanned(String code) {
+    // Replace literal "\t" with actual tab characters if needed
+    String processedCode = code.replaceAll(r'\t', "\t");
     setState(() {
-      _textController.text += "\n" + code;
+      // Append complete QR info and add a newline for the next text.
+      _textController.text += processedCode + "\n";
       dataHistory.add(_textController.text); // Update history with the new state
     });
-    // Ensure focus remains in the MainTextArea
     _textFocusNode.requestFocus();
   }
 
@@ -487,16 +491,16 @@ Future<void> saveInExcel() async {
                 ),
               ],
             ),
+            // Modified container: display either ASCII art, mobile QRView, or web camera preview via WebQRScanner
             isCameraMode
                 ? Container(
                     height: 200,
                     color: Colors.black,
                     child: kIsWeb
-                        ? Center(
-                            child: Text(
-                              "Camera scanning not supported on web.",
-                              style: TextStyle(color: Colors.white),
-                            ),
+                        ? WebQRScanner(
+                            onScan: (code) {
+                              onQRCodeScanned(code);
+                            },
                           )
                         : QRView(
                             key: qrKey,
@@ -587,5 +591,170 @@ Future<void> saveInExcel() async {
         ),
       ),
     );
+  }
+}
+
+// New widget for web QR scanning
+class WebQRScanner extends StatefulWidget {
+  final Function(String) onScan;
+  const WebQRScanner({Key? key, required this.onScan}) : super(key: key);
+
+  @override
+  _WebQRScannerState createState() => _WebQRScannerState();
+}
+
+class _WebQRScannerState extends State<WebQRScanner> {
+  html.VideoElement? _videoElement;
+  Timer? _scanTimer; // Timer for periodic scanning
+  final html.CanvasElement _scanCanvas = html.CanvasElement(); // Offscreen canvas for scanning  
+  String? _errorMessage; // New state variable for camera errors
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeCamera();
+  }
+
+  // Modified camera initialization with error handling
+  void _initializeCamera() async {
+    try {
+      final stream = await html.window.navigator.mediaDevices!
+          .getUserMedia({'video': true});
+      if (stream == null) {
+        throw "No camera stream available.";
+      }
+      _videoElement = html.VideoElement()
+        ..autoplay = true
+        ..srcObject = stream;
+      // Register the video element for HtmlElementView
+      // ignore:undefined_prefixed_name
+      ui.platformViewRegistry.registerViewFactory(
+        'web-qr-camera',
+        (int viewId) => _videoElement!,
+      );
+      setState(() {
+        _errorMessage = null;
+      });
+      _startScanning(); // Begin scanning once camera is ready
+    } catch (e) {
+      print("Error accessing camera: $e");
+      setState(() {
+        _errorMessage = "Error accessing camera: $e";
+        _videoElement = null;
+      });
+    }
+  }
+
+  // Modified _startScanning() with extra logs and faster scanning frequency.
+  void _startScanning() {
+    _scanTimer = Timer.periodic(Duration(milliseconds: 200), (timer) {
+      if (_videoElement != null && _videoElement!.readyState == 4) {
+        print("Video dimensions: ${_videoElement!.videoWidth} x ${_videoElement!.videoHeight}");
+        _scanCanvas.width = _videoElement!.videoWidth;
+        _scanCanvas.height = _videoElement!.videoHeight;
+        final ctx = _scanCanvas.context2D;
+        ctx.drawImage(_videoElement!, 0, 0);
+        final imageData = ctx.getImageData(0, 0, _scanCanvas.width!, _scanCanvas.height!);
+        print("Scanning frame with ${imageData.data.length} pixels");
+        try {
+          dynamic jsQR = js.context['jsQR'];
+          if (jsQR == null) {
+            print("jsQR not found. Include jsQR library in index.html.");
+            timer.cancel();
+            return;
+          }
+          final result = jsQR.apply([imageData.data, _scanCanvas.width, _scanCanvas.height]);
+          if (result != null && result['data'] != null) {
+            print("QR Detected: ${result['data']}");
+            widget.onScan(result['data']);
+            timer.cancel();
+          } else {
+            print("No QR detected in this frame.");
+          }
+        } catch (e) {
+          print("Error in scanning: $e");
+        }
+      }
+    });
+  }
+
+  // Modified function to scan the current frame on demand with notifications
+  void scanFrame() {
+    if (_videoElement != null && _videoElement!.readyState == 4) {
+      _scanCanvas.width = _videoElement!.videoWidth;
+      _scanCanvas.height = _videoElement!.videoHeight;
+      final ctx = _scanCanvas.context2D;
+      ctx.drawImage(_videoElement!, 0, 0);
+      final imageData = ctx.getImageData(0, 0, _scanCanvas.width!, _scanCanvas.height!);
+      print("Manual scan: Video dimensions: ${_videoElement!.videoWidth} x ${_videoElement!.videoHeight}");
+      try {
+        dynamic jsQR = js.context['jsQR'];
+        if (jsQR == null) {
+          print("jsQR not found. Make sure to include it.");
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("jsQR not found. Include it in index.html."))
+          );
+          return;
+        }
+        final result = jsQR.apply([imageData.data, _scanCanvas.width, _scanCanvas.height]);
+        if (result != null && result['data'] != null) {
+          print("QR Detected via manual scan: ${result['data']}");
+          widget.onScan(result['data']);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("QR detected and scanned!"))
+          );
+        } else {
+          print("No QR detected on manual scan.");
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("No QR detected in this frame."))
+          );
+        }
+      } catch (e) {
+        print("Error scanning manually: $e");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error scanning frame: $e"))
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _scanTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // If there was an error, display it.
+    if (_errorMessage != null) {
+      return Center(child: Text(_errorMessage!));
+    }
+    return _videoElement != null
+        ? Stack(
+            children: [
+              HtmlElementView(viewType: 'web-qr-camera'),
+              Positioned(
+                bottom: 10,
+                right: 10,
+                child: ElevatedButton(
+                  onPressed: () {
+                    widget.onScan("Código QR Web");
+                  },
+                  child: Text("Simular escaneo QR"),
+                ),
+              ),
+              // New button to scan the current frame on demand
+              Positioned(
+                bottom: 10,
+                left: 10,
+                child: ElevatedButton(
+                  onPressed: scanFrame,
+                  child: Text("Escanear frame"),
+                ),
+              ),
+            ],
+          )
+        : Center(child: Text("Accediendo a la cámara..."));
   }
 }
