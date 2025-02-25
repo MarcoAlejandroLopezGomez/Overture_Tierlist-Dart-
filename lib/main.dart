@@ -646,15 +646,18 @@ class CustomerCart extends StatelessWidget {
       height: 150, // Adjust height as needed
       child: DragTarget<ImageData>(
         builder: (context, candidateData, rejectedData) {
-          return ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: customer.items.length + 1,
-            itemBuilder: (context, index) {
-              if (index == customer.items.length) {
-                return const SizedBox(width: 100); // Placeholder for dropping at the end
-              }
-              return buildDraggableImage(customer.items[index], context, index);
-            },
+          return Scrollbar(
+            thumbVisibility: true,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: customer.items.length + 1,
+              itemBuilder: (context, index) {
+                if (index == customer.items.length) {
+                  return const SizedBox(width: 100); // Placeholder for dropping at the end
+                }
+                return buildDraggableImage(customer.items[index], context, index);
+              },
+            ),
           );
         },
         onWillAccept: (data) => !crossOutMode && !editMode,

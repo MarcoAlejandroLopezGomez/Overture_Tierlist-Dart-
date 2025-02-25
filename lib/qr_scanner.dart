@@ -11,6 +11,7 @@ import 'package:qr_code_scanner/qr_code_scanner.dart';  // Import for QR code sc
 import 'main.dart'; // Agrega esta línea para navegar a TierListPage
 import 'dart:ui_web' as ui; // New import for web view registry
 import 'dart:js' as js; // New import for calling jsQR
+import 'dart:typed_data';
 
 
 /// Función principal que arranca la aplicación.
@@ -446,6 +447,17 @@ Future<void> saveInExcel() async {
   }
 }
 
+  // New method to prepare and send the prompt to ChatGPT.
+  void _sendToChatGPT() {
+    final originalText = _textController.text;
+    final processedText = originalText.replaceAll('\t', ',');
+    final prompt = "Elige, basado en estos datos, al mejor equipo para mi estrategia de mi competencia de FRC.\n\nDatos: " + processedText;
+    Clipboard.setData(ClipboardData(text: prompt));
+    html.window.open("https://chat.openai.com/", "_blank");
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Prompt copiado y ChatGPT abierto."))
+    );
+  }
 
   @override
   void dispose() {
@@ -464,6 +476,11 @@ Future<void> saveInExcel() async {
       appBar: AppBar(
         title: const Text("OverScouting Qr"),
         actions: [
+          IconButton(
+            icon: Icon(Icons.chat),
+            onPressed: _sendToChatGPT,
+            tooltip: "Enviar a ChatGPT",
+          ),
           TextButton(
             onPressed: () {
               Navigator.pushReplacement(
@@ -642,6 +659,24 @@ class _WebQRScannerState extends State<WebQRScanner> {
     }
   }
 
+  // New helper method to apply a B&W high contrast filter.
+  Uint8ClampedList _applyFilter(Uint8ClampedList data) {
+    for (int i = 0; i < data.length; i += 4) {
+      final r = data[i];
+      final g = data[i + 1];
+      final b = data[i + 2];
+      // Compute luminance using standard weights.
+      final gray = (0.299 * r + 0.587 * g + 0.114 * b).round();
+      // Set high contrast: threshold at 128.
+      final highContrast = gray > 128 ? 255 : 0;
+      data[i] = highContrast;
+      data[i + 1] = highContrast;
+      data[i + 2] = highContrast;
+      // Alpha remains unchanged.
+    }
+    return data;
+  }
+
   // Modified _startScanning() with extra logs and faster scanning frequency.
   void _startScanning() {
     _scanTimer = Timer.periodic(Duration(seconds: 1), (timer) {
@@ -653,11 +688,15 @@ class _WebQRScannerState extends State<WebQRScanner> {
         ctx.drawImage(_videoElement!, 0, 0);
         final imageData = ctx.getImageData(0, 0, _scanCanvas.width!, _scanCanvas.height!);
         print("Scanning frame with ${imageData.data.length} pixels");
+
+        // Apply filter to convert to black & white with high contrast.
+        final filteredData = _applyFilter(imageData.data);
+        
         try {
           dynamic jsQR = js.context['jsQR'];
           if (jsQR == null) {
             print("jsQR not found. Include jsQR library in index.html.");
-            // Stop scanning if jsQR is unavailable.
+// Stop scanning if jsQR is unavailable.
             timer.cancel();
             return;
           }
