@@ -21,7 +21,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{A92196B8-9EE3-3C26-82C6-19F334D25073}</ProjectGuid>
+    <ProjectGuid>{0031B98D-0560-321B-94C7-85522339CB51}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <WindowsTargetPlatformVersion>10.0.22621.0</WindowsTargetPlatformVersion>
     <Platform>x64</Platform>
@@ -88,11 +88,11 @@
     </Midl>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <CustomBuild Include="C:\Users\marco\OneDrive\Documentos\NewOverScoutingTierList\new_overscauting_tierlist\windows\runner\CMakeLists.txt">
+    <CustomBuild Include="C:\OverScouting\Overture_Tierlist-Dart-\windows\runner\CMakeLists.txt">
       <UseUtf8Encoding>Always</UseUtf8Encoding>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/windows/runner/CMakeLists.txt</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule C:/OverScouting/Overture_Tierlist-Dart-/windows/runner/CMakeLists.txt</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
-"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SC:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/windows -BC:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64 --check-stamp-file C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/runner/CMakeFiles/generate.stamp
+"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SC:/OverScouting/Overture_Tierlist-Dart-/windows -BC:/OverScouting/Overture_Tierlist-Dart-/build/windows/x64 --check-stamp-file C:/OverScouting/Overture_Tierlist-Dart-/build/windows/x64/runner/CMakeFiles/generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -101,11 +101,11 @@ exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\marco\OneDrive\Documentos\NewOverScoutingTierList\new_overscauting_tierlist\build\windows\x64\runner\CMakeFiles\generate.stamp</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\OverScouting\Overture_Tierlist-Dart-\build\windows\x64\runner\CMakeFiles\generate.stamp</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">Building Custom Rule C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/windows/runner/CMakeLists.txt</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">Building Custom Rule C:/OverScouting/Overture_Tierlist-Dart-/windows/runner/CMakeLists.txt</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">setlocal
-"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SC:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/windows -BC:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64 --check-stamp-file C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/runner/CMakeFiles/generate.stamp
+"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SC:/OverScouting/Overture_Tierlist-Dart-/windows -BC:/OverScouting/Overture_Tierlist-Dart-/build/windows/x64 --check-stamp-file C:/OverScouting/Overture_Tierlist-Dart-/build/windows/x64/runner/CMakeFiles/generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -114,11 +114,11 @@ exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">C:\Users\marco\OneDrive\Documentos\NewOverScoutingTierList\new_overscauting_tierlist\build\windows\x64\runner\CMakeFiles\generate.stamp</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">C:\OverScouting\Overture_Tierlist-Dart-\build\windows\x64\runner\CMakeFiles\generate.stamp</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Profile|x64'">false</LinkObjects>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/windows/runner/CMakeLists.txt</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule C:/OverScouting/Overture_Tierlist-Dart-/windows/runner/CMakeLists.txt</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
-"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SC:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/windows -BC:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64 --check-stamp-file C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/runner/CMakeFiles/generate.stamp
+"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" -SC:/OverScouting/Overture_Tierlist-Dart-/windows -BC:/OverScouting/Overture_Tierlist-Dart-/build/windows/x64 --check-stamp-file C:/OverScouting/Overture_Tierlist-Dart-/build/windows/x64/runner/CMakeFiles/generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -127,21 +127,21 @@ exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\marco\OneDrive\Documentos\NewOverScoutingTierList\new_overscauting_tierlist\build\windows\x64\runner\CMakeFiles\generate.stamp</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\OverScouting\Overture_Tierlist-Dart-\build\windows\x64\runner\CMakeFiles\generate.stamp</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="C:\Users\marco\OneDrive\Documentos\NewOverScoutingTierList\new_overscauting_tierlist\build\windows\x64\ZERO_CHECK.vcxproj">
-      <Project>{EF5739F2-24AA-3469-AD9C-71A7AA9F4946}</Project>
+    <ProjectReference Include="C:\OverScouting\Overture_Tierlist-Dart-\build\windows\x64\ZERO_CHECK.vcxproj">
+      <Project>{454A907C-AF70-3DC9-9DBF-867C316FF250}</Project>
       <Name>ZERO_CHECK</Name>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </ProjectReference>
-    <ProjectReference Include="C:\Users\marco\OneDrive\Documentos\NewOverScoutingTierList\new_overscauting_tierlist\build\windows\x64\runner\new_overscauting_tierlist.vcxproj">
-      <Project>{5E304265-84D8-346E-9ABD-0EAAFE2C55A5}</Project>
+    <ProjectReference Include="C:\OverScouting\Overture_Tierlist-Dart-\build\windows\x64\runner\new_overscauting_tierlist.vcxproj">
+      <Project>{5005826C-BA56-36DE-BF9F-FB118E1B9A8A}</Project>
       <Name>new_overscauting_tierlist</Name>
     </ProjectReference>
   </ItemGroup>

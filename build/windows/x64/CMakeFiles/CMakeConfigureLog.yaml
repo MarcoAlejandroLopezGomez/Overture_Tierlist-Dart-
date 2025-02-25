@@ -24,9 +24,9 @@ events:
       The output was:
       0
       MSBuild version 17.11.9+a69bbaaf5 for .NET Framework
-      Build started 27/10/2024 05:06:45 p. m..
+      Build started 24/02/2025 03:53:29 p. m..
       
-      Project "C:\\Users\\marco\\OneDrive\\Documentos\\NewOverScoutingTierList\\new_overscauting_tierlist\\build\\windows\\x64\\CMakeFiles\\3.29.5-msvc4\\CompilerIdCXX\\CompilerIdCXX.vcxproj" on node 1 (default targets).
+      Project "C:\\OverScouting\\Overture_Tierlist-Dart-\\build\\windows\\x64\\CMakeFiles\\3.29.5-msvc4\\CompilerIdCXX\\CompilerIdCXX.vcxproj" on node 1 (default targets).
       PrepareForBuild:
         Creating directory "Debug\\".
         Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
@@ -39,7 +39,7 @@ events:
         CMakeCXXCompilerId.cpp
       Link:
         C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.41.34120\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:".\\CompilerIdCXX.exe" /INCREMENTAL:NO /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /PDB:".\\CompilerIdCXX.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:".\\CompilerIdCXX.lib" /MACHINE:X64 Debug\\CMakeCXXCompilerId.obj
-        CompilerIdCXX.vcxproj -> C:\\Users\\marco\\OneDrive\\Documentos\\NewOverScoutingTierList\\new_overscauting_tierlist\\build\\windows\\x64\\CMakeFiles\\3.29.5-msvc4\\CompilerIdCXX\\CompilerIdCXX.exe
+        CompilerIdCXX.vcxproj -> C:\\OverScouting\\Overture_Tierlist-Dart-\\build\\windows\\x64\\CMakeFiles\\3.29.5-msvc4\\CompilerIdCXX\\CompilerIdCXX.exe
       PostBuildEvent:
         for %%i in (cl.exe) do @echo CMAKE_CXX_COMPILER=%%~$PATH:i
         :VCEnd
@@ -47,13 +47,13 @@ events:
       FinalizeBuildStatus:
         Deleting file "Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild".
         Touching "Debug\\CompilerIdCXX.tlog\\CompilerIdCXX.lastbuildstate".
-      Done Building Project "C:\\Users\\marco\\OneDrive\\Documentos\\NewOverScoutingTierList\\new_overscauting_tierlist\\build\\windows\\x64\\CMakeFiles\\3.29.5-msvc4\\CompilerIdCXX\\CompilerIdCXX.vcxproj" (default targets).
+      Done Building Project "C:\\OverScouting\\Overture_Tierlist-Dart-\\build\\windows\\x64\\CMakeFiles\\3.29.5-msvc4\\CompilerIdCXX\\CompilerIdCXX.vcxproj" (default targets).
       
       Build succeeded.
           0 Warning(s)
           0 Error(s)
       
-      Time Elapsed 00:00:03.62
+      Time Elapsed 00:00:01.68
       
       
       Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CompilerIdCXX.exe"
@@ -61,7 +61,7 @@ events:
       Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CompilerIdCXX.vcxproj"
       
       The CXX compiler identification is MSVC, found in:
-        C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/CMakeFiles/3.29.5-msvc4/CompilerIdCXX/CompilerIdCXX.exe
+        C:/OverScouting/Overture_Tierlist-Dart-/build/windows/x64/CMakeFiles/3.29.5-msvc4/CompilerIdCXX/CompilerIdCXX.exe
       
   -
     kind: "try_compile-v1"
@@ -72,8 +72,8 @@ events:
     checks:
       - "Detecting CXX compiler ABI info"
     directories:
-      source: "C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/CMakeFiles/CMakeScratch/TryCompile-adupbj"
-      binary: "C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/CMakeFiles/CMakeScratch/TryCompile-adupbj"
+      source: "C:/OverScouting/Overture_Tierlist-Dart-/build/windows/x64/CMakeFiles/CMakeScratch/TryCompile-evbyen"
+      binary: "C:/OverScouting/Overture_Tierlist-Dart-/build/windows/x64/CMakeFiles/CMakeScratch/TryCompile-evbyen"
     cmakeVariables:
       CMAKE_CXX_FLAGS: "/DWIN32 /D_WINDOWS /W3 /GR /EHsc"
       CMAKE_CXX_FLAGS_DEBUG: "/MDd /Zi /Ob0 /Od /RTC1"
@@ -83,40 +83,40 @@ events:
       variable: "CMAKE_CXX_ABI_COMPILED"
       cached: true
       stdout: |
-        Change Dir: 'C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/CMakeFiles/CMakeScratch/TryCompile-adupbj'
+        Change Dir: 'C:/OverScouting/Overture_Tierlist-Dart-/build/windows/x64/CMakeFiles/CMakeScratch/TryCompile-evbyen'
         
-        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_93201.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=17.0 /v:n
+        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_a4fb7.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=17.0 /v:n
         MSBuild version 17.11.9+a69bbaaf5 for .NET Framework
-        Build started 27/10/2024 05:06:50 p. m..
+        Build started 24/02/2025 03:53:33 p. m..
         
-        Project "C:\\Users\\marco\\OneDrive\\Documentos\\NewOverScoutingTierList\\new_overscauting_tierlist\\build\\windows\\x64\\CMakeFiles\\CMakeScratch\\TryCompile-adupbj\\cmTC_93201.vcxproj" on node 1 (default targets).
+        Project "C:\\OverScouting\\Overture_Tierlist-Dart-\\build\\windows\\x64\\CMakeFiles\\CMakeScratch\\TryCompile-evbyen\\cmTC_a4fb7.vcxproj" on node 1 (default targets).
         PrepareForBuild:
-          Creating directory "cmTC_93201.dir\\Debug\\".
+          Creating directory "cmTC_a4fb7.dir\\Debug\\".
           Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
-          Creating directory "C:\\Users\\marco\\OneDrive\\Documentos\\NewOverScoutingTierList\\new_overscauting_tierlist\\build\\windows\\x64\\CMakeFiles\\CMakeScratch\\TryCompile-adupbj\\Debug\\".
-          Creating directory "cmTC_93201.dir\\Debug\\cmTC_93201.tlog\\".
+          Creating directory "C:\\OverScouting\\Overture_Tierlist-Dart-\\build\\windows\\x64\\CMakeFiles\\CMakeScratch\\TryCompile-evbyen\\Debug\\".
+          Creating directory "cmTC_a4fb7.dir\\Debug\\cmTC_a4fb7.tlog\\".
         InitializeBuildStatus:
-          Creating "cmTC_93201.dir\\Debug\\cmTC_93201.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
-          Touching "cmTC_93201.dir\\Debug\\cmTC_93201.tlog\\unsuccessfulbuild".
+          Creating "cmTC_a4fb7.dir\\Debug\\cmTC_a4fb7.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+          Touching "cmTC_a4fb7.dir\\Debug\\cmTC_a4fb7.tlog\\unsuccessfulbuild".
         ClCompile:
-          C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.41.34120\\bin\\HostX64\\x64\\CL.exe /c /Zi /W3 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /GR /Fo"cmTC_93201.dir\\Debug\\\\" /Fd"cmTC_93201.dir\\Debug\\vc143.pdb" /external:W3 /Gd /TP /errorReport:queue "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\share\\cmake-3.29\\Modules\\CMakeCXXCompilerABI.cpp"
+          C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.41.34120\\bin\\HostX64\\x64\\CL.exe /c /Zi /W3 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /GR /Fo"cmTC_a4fb7.dir\\Debug\\\\" /Fd"cmTC_a4fb7.dir\\Debug\\vc143.pdb" /external:W3 /Gd /TP /errorReport:queue "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\share\\cmake-3.29\\Modules\\CMakeCXXCompilerABI.cpp"
           Microsoft (R) C/C++ Optimizing Compiler Version 19.41.34123 for x64
           Copyright (C) Microsoft Corporation.  All rights reserved.
-          cl /c /Zi /W3 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /GR /Fo"cmTC_93201.dir\\Debug\\\\" /Fd"cmTC_93201.dir\\Debug\\vc143.pdb" /external:W3 /Gd /TP /errorReport:queue "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\share\\cmake-3.29\\Modules\\CMakeCXXCompilerABI.cpp"
+          cl /c /Zi /W3 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /GR /Fo"cmTC_a4fb7.dir\\Debug\\\\" /Fd"cmTC_a4fb7.dir\\Debug\\vc143.pdb" /external:W3 /Gd /TP /errorReport:queue "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\share\\cmake-3.29\\Modules\\CMakeCXXCompilerABI.cpp"
           CMakeCXXCompilerABI.cpp
         Link:
-          C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.41.34120\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:"C:\\Users\\marco\\OneDrive\\Documentos\\NewOverScoutingTierList\\new_overscauting_tierlist\\build\\windows\\x64\\CMakeFiles\\CMakeScratch\\TryCompile-adupbj\\Debug\\cmTC_93201.exe" /INCREMENTAL /ILK:"cmTC_93201.dir\\Debug\\cmTC_93201.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/CMakeFiles/CMakeScratch/TryCompile-adupbj/Debug/cmTC_93201.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/build/windows/x64/CMakeFiles/CMakeScratch/TryCompile-adupbj/Debug/cmTC_93201.lib" /MACHINE:X64  /machine:x64 cmTC_93201.dir\\Debug\\CMakeCXXCompilerABI.obj
-          cmTC_93201.vcxproj -> C:\\Users\\marco\\OneDrive\\Documentos\\NewOverScoutingTierList\\new_overscauting_tierlist\\build\\windows\\x64\\CMakeFiles\\CMakeScratch\\TryCompile-adupbj\\Debug\\cmTC_93201.exe
+          C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.41.34120\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:"C:\\OverScouting\\Overture_Tierlist-Dart-\\build\\windows\\x64\\CMakeFiles\\CMakeScratch\\TryCompile-evbyen\\Debug\\cmTC_a4fb7.exe" /INCREMENTAL /ILK:"cmTC_a4fb7.dir\\Debug\\cmTC_a4fb7.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/OverScouting/Overture_Tierlist-Dart-/build/windows/x64/CMakeFiles/CMakeScratch/TryCompile-evbyen/Debug/cmTC_a4fb7.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:/OverScouting/Overture_Tierlist-Dart-/build/windows/x64/CMakeFiles/CMakeScratch/TryCompile-evbyen/Debug/cmTC_a4fb7.lib" /MACHINE:X64  /machine:x64 cmTC_a4fb7.dir\\Debug\\CMakeCXXCompilerABI.obj
+          cmTC_a4fb7.vcxproj -> C:\\OverScouting\\Overture_Tierlist-Dart-\\build\\windows\\x64\\CMakeFiles\\CMakeScratch\\TryCompile-evbyen\\Debug\\cmTC_a4fb7.exe
         FinalizeBuildStatus:
-          Deleting file "cmTC_93201.dir\\Debug\\cmTC_93201.tlog\\unsuccessfulbuild".
-          Touching "cmTC_93201.dir\\Debug\\cmTC_93201.tlog\\cmTC_93201.lastbuildstate".
-        Done Building Project "C:\\Users\\marco\\OneDrive\\Documentos\\NewOverScoutingTierList\\new_overscauting_tierlist\\build\\windows\\x64\\CMakeFiles\\CMakeScratch\\TryCompile-adupbj\\cmTC_93201.vcxproj" (default targets).
+          Deleting file "cmTC_a4fb7.dir\\Debug\\cmTC_a4fb7.tlog\\unsuccessfulbuild".
+          Touching "cmTC_a4fb7.dir\\Debug\\cmTC_a4fb7.tlog\\cmTC_a4fb7.lastbuildstate".
+        Done Building Project "C:\\OverScouting\\Overture_Tierlist-Dart-\\build\\windows\\x64\\CMakeFiles\\CMakeScratch\\TryCompile-evbyen\\cmTC_a4fb7.vcxproj" (default targets).
         
         Build succeeded.
             0 Warning(s)
             0 Error(s)
         
-        Time Elapsed 00:00:02.01
+        Time Elapsed 00:00:00.77
         
       exitCode: 0
   -

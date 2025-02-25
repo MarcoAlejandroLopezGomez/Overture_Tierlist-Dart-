@@ -12,6 +12,7 @@ import 'package:flutter/services.dart'; // Add this import for LogicalKeyboardKe
 import 'package:uuid/uuid.dart';
 import 'qr_scanner.dart'; // Agregada la importación para Qr Scanner
 
+
 class BoldIntent extends Intent {
   const BoldIntent();
 }

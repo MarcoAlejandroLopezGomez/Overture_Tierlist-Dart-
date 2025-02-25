@@ -9,8 +9,9 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:html' as html; // Only used on web
 import 'package:qr_code_scanner/qr_code_scanner.dart';  // Import for QR code scanning
 import 'main.dart'; // Agrega esta línea para navegar a TierListPage
-import 'dart:ui' as ui; // New import for web view registry
+import 'dart:ui_web' as ui; // New import for web view registry
 import 'dart:js' as js; // New import for calling jsQR
+
 
 /// Función principal que arranca la aplicación.
 void main() {
@@ -619,6 +620,9 @@ class _WebQRScannerState extends State<WebQRScanner> {
       _videoElement = html.VideoElement()
         ..autoplay = true
         ..srcObject = stream;
+      // Set explicit style height and width to avoid defaulting warning.
+      _videoElement!.style.height = '200px';
+      _videoElement!.style.width = '100%';
       // Register the video element for HtmlElementView
       // ignore:undefined_prefixed_name
       ui.platformViewRegistry.registerViewFactory(
@@ -640,7 +644,7 @@ class _WebQRScannerState extends State<WebQRScanner> {
 
   // Modified _startScanning() with extra logs and faster scanning frequency.
   void _startScanning() {
-    _scanTimer = Timer.periodic(Duration(milliseconds: 200), (timer) {
+    _scanTimer = Timer.periodic(Duration(seconds: 1), (timer) {
       if (_videoElement != null && _videoElement!.readyState == 4) {
         print("Video dimensions: ${_videoElement!.videoWidth} x ${_videoElement!.videoHeight}");
         _scanCanvas.width = _videoElement!.videoWidth;
@@ -653,6 +657,7 @@ class _WebQRScannerState extends State<WebQRScanner> {
           dynamic jsQR = js.context['jsQR'];
           if (jsQR == null) {
             print("jsQR not found. Include jsQR library in index.html.");
+            // Stop scanning if jsQR is unavailable.
             timer.cancel();
             return;
           }
@@ -660,12 +665,14 @@ class _WebQRScannerState extends State<WebQRScanner> {
           if (result != null && result['data'] != null) {
             print("QR Detected: ${result['data']}");
             widget.onScan(result['data']);
-            timer.cancel();
+            //timer.cancel(); // Stop scanning after detection.
           } else {
-            print("No QR detected in this frame.");
+            print("No QR detected, continuing scanning.");
+            // Do not cancel the timer; simply continue scanning.
           }
         } catch (e) {
           print("Error in scanning: $e");
+          // Ignore error and keep scanning.
         }
       }
     });
