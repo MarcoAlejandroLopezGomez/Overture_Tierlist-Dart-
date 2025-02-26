@@ -7,7 +7,12 @@ import 'package:file_picker/file_picker.dart';
 import 'package:excel/excel.dart' as ex; // Paquete para generar archivos Excel
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:html' as html; // Only used on web
+import 'package:qr_code_scanner/qr_code_scanner.dart';  // Import for QR code scanning
 import 'main.dart'; // Agrega esta línea para navegar a TierListPage
+import 'dart:ui_web' as ui; // New import for web view registry
+import 'dart:js' as js; // New import for calling jsQR
+import 'dart:typed_data';
+
 
 /// Función principal que arranca la aplicación.
 void main() {
@@ -37,14 +42,13 @@ class OverScoutingApp extends StatefulWidget {
 class _OverScoutingAppState extends State<OverScoutingApp> {
   // ASCII art que se mostrará en la parte superior
   final String asciiArt = r"""
-        
     .___                 ____                  _   _                ___       
   ../ _ \__   _____ _ __/ ___|  ___ __ _ _   _| |_(_)_ __   __ _   / _ \ _ __ 
   .| | | \ \ / / _ \ '__\___ \ / __/ _` | | | | __| | '_ \ / _` | | | | | '__|
   .| |_| |\ V /  __/ |   ___) | (_| (_| | |_| | |_| | | | | (_| | | |_| | |   
     \___/  \_/ \___|_|  |____/ \___\__,_|\__,_|\__|_|_| |_|\__, |  \__\_\_|   
-                                                          |___/              
-      by FIRST FRC Team Overture - 7421        
+                                                            |___/             
+    by FIRST FRC Team Overture - 7421        
         
       Bienvenido a OverScouting Qr, la herramienta de compilación de datos por QR.
       Agradecemos la aplicación de QRScout de Red Hawk Robotics 2713.
@@ -74,6 +78,39 @@ class _OverScoutingAppState extends State<OverScoutingApp> {
   // Directorio de documentos de la aplicación
   late Directory appDocDir;
 
+  bool isCameraMode = false; // State flag
+  final GlobalKey qrKey = GlobalKey(debugLabel: 'QR'); // Still used for mobile
+  QRViewController? qrController; // Mobile QR controller
+
+  // New function to toggle camera preview mode
+  void toggleCameraMode() {
+    setState(() {
+      isCameraMode = !isCameraMode;
+    });
+  }
+
+  // New function to handle QRView creation
+  void _onQRViewCreated(QRViewController controller) {
+    qrController = controller;
+    controller.scannedDataStream.listen((scanData) {
+      // Append scanned QR data
+      if (scanData.code != null && scanData.code!.isNotEmpty) {
+        onQRCodeScanned(scanData.code!);
+      }
+    });
+  }
+
+  // Modified function to handle scanned QR code results:
+  void onQRCodeScanned(String code) {
+    // Replace literal "\t" with actual tab characters if needed
+    String processedCode = code.replaceAll(r'\t', "\t");
+    setState(() {
+      // Append complete QR info and add a newline for the next text.
+      _textController.text += processedCode + "\n";
+      dataHistory.add(_textController.text); // Update history with the new state
+    });
+    _textFocusNode.requestFocus();
+  }
 
   /// Inicializa la aplicación: obtiene el directorio de documentos,
   /// carga datos existentes y arranca el temporizador de autosave.
@@ -410,9 +447,21 @@ Future<void> saveInExcel() async {
   }
 }
 
+  // New method to prepare and send the prompt to ChatGPT.
+  void _sendToChatGPT() {
+    final originalText = _textController.text;
+    final processedText = originalText.replaceAll('\t', ',');
+    final prompt = "Elige, basado en estos datos, al mejor equipo para mi estrategia de mi competencia de FRC.\n\nDatos: " + processedText;
+    Clipboard.setData(ClipboardData(text: prompt));
+    html.window.open("https://chat.openai.com/", "_blank");
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Prompt copiado y ChatGPT abierto."))
+    );
+  }
 
   @override
   void dispose() {
+    qrController?.dispose();
     autosaveTimer?.cancel();
     _textController.dispose();
     // Dispose the added FocusNode
@@ -427,6 +476,11 @@ Future<void> saveInExcel() async {
       appBar: AppBar(
         title: const Text("OverScouting Qr"),
         actions: [
+          IconButton(
+            icon: Icon(Icons.chat),
+            onPressed: _sendToChatGPT,
+            tooltip: "Enviar a ChatGPT",
+          ),
           TextButton(
             onPressed: () {
               Navigator.pushReplacement(
@@ -445,19 +499,44 @@ Future<void> saveInExcel() async {
         padding: const EdgeInsets.all(10.0),
         child: Column(
           children: [
-            // Área para mostrar el ASCII art en un contenedor scrollable
-            Container(
-              height: 200,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.black),
-              ),
-              child: SingleChildScrollView(
-                child: Text(
-                  asciiArt,
-                  style: TextStyle(fontFamily: 'monospace'),
+            // Modified container: display either ASCII art or camera preview
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(
+                  onPressed: toggleCameraMode,
+                  child: Text(isCameraMode ? "Mostrar ASCII" : "Usar Cámara"),
                 ),
-              ),
+              ],
             ),
+            // Modified container: display either ASCII art, mobile QRView, or web camera preview via WebQRScanner
+            isCameraMode
+                ? Container(
+                    height: 200,
+                    color: Colors.black,
+                    child: kIsWeb
+                        ? WebQRScanner(
+                            onScan: (code) {
+                              onQRCodeScanned(code);
+                            },
+                          )
+                        : QRView(
+                            key: qrKey,
+                            onQRViewCreated: _onQRViewCreated,
+                          ),
+                  )
+                : Container(
+                    height: 200,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.black),
+                    ),
+                    child: SingleChildScrollView(
+                      child: Text(
+                        asciiArt,
+                        style: TextStyle(fontFamily: 'monospace'),
+                      ),
+                    ),
+                  ),
             SizedBox(height: 10),
             // Wrap the MainTextArea with RawKeyboardListener to capture Tab key
             Expanded(
@@ -474,6 +553,8 @@ Future<void> saveInExcel() async {
                       text: newText,
                       selection: TextSelection.collapsed(offset: newPosition),
                     );
+                    // Re-request focus so the text field remains active
+                    _textFocusNode.requestFocus();
                   }
                 },
                 child: TextField(
@@ -487,7 +568,7 @@ Future<void> saveInExcel() async {
               ),
             ),
             SizedBox(height: 10),
-            // Fila de botones para las acciones: Add Entry, Undo, Save CSV y Save In Excel
+            // Fila de botones para las acciones: Undo, Save CSV y Save In Excel
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -521,5 +602,198 @@ Future<void> saveInExcel() async {
         ),
       ),
     );
+  }
+}
+
+// New widget for web QR scanning
+class WebQRScanner extends StatefulWidget {
+  final Function(String) onScan;
+  const WebQRScanner({Key? key, required this.onScan}) : super(key: key);
+
+  @override
+  _WebQRScannerState createState() => _WebQRScannerState();
+}
+
+class _WebQRScannerState extends State<WebQRScanner> {
+  html.VideoElement? _videoElement;
+  Timer? _scanTimer; // Timer for periodic scanning
+  final html.CanvasElement _scanCanvas = html.CanvasElement(); // Offscreen canvas for scanning  
+  String? _errorMessage; // New state variable for camera errors
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeCamera();
+  }
+
+  // Modified camera initialization with error handling
+  void _initializeCamera() async {
+    try {
+      final stream = await html.window.navigator.mediaDevices!
+          .getUserMedia({'video': true});
+      if (stream == null) {
+        throw "No camera stream available.";
+      }
+      _videoElement = html.VideoElement()
+        ..autoplay = true
+        ..srcObject = stream;
+      // Set explicit style height and width to avoid defaulting warning.
+      _videoElement!.style.height = '200px';
+      _videoElement!.style.width = '100%';
+      // Register the video element for HtmlElementView
+      // ignore:undefined_prefixed_name
+      ui.platformViewRegistry.registerViewFactory(
+        'web-qr-camera',
+        (int viewId) => _videoElement!,
+      );
+      setState(() {
+        _errorMessage = null;
+      });
+      _startScanning(); // Begin scanning once camera is ready
+    } catch (e) {
+      print("Error accessing camera: $e");
+      setState(() {
+        _errorMessage = "Error accessing camera: $e";
+        _videoElement = null;
+      });
+    }
+  }
+
+  // New helper method to apply a B&W high contrast filter.
+  Uint8ClampedList _applyFilter(Uint8ClampedList data) {
+    for (int i = 0; i < data.length; i += 4) {
+      final r = data[i];
+      final g = data[i + 1];
+      final b = data[i + 2];
+      // Compute luminance using standard weights.
+      final gray = (0.299 * r + 0.587 * g + 0.114 * b).round();
+      // Set high contrast: threshold at 128.
+      final highContrast = gray > 128 ? 255 : 0;
+      data[i] = highContrast;
+      data[i + 1] = highContrast;
+      data[i + 2] = highContrast;
+      // Alpha remains unchanged.
+    }
+    return data;
+  }
+
+  // Modified _startScanning() with extra logs and faster scanning frequency.
+  void _startScanning() {
+    _scanTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+      if (_videoElement != null && _videoElement!.readyState == 4) {
+        print("Video dimensions: ${_videoElement!.videoWidth} x ${_videoElement!.videoHeight}");
+        _scanCanvas.width = _videoElement!.videoWidth;
+        _scanCanvas.height = _videoElement!.videoHeight;
+        final ctx = _scanCanvas.context2D;
+        ctx.drawImage(_videoElement!, 0, 0);
+        final imageData = ctx.getImageData(0, 0, _scanCanvas.width!, _scanCanvas.height!);
+        print("Scanning frame with ${imageData.data.length} pixels");
+
+        // Apply filter to convert to black & white with high contrast.
+        final filteredData = _applyFilter(imageData.data);
+        
+        try {
+          dynamic jsQR = js.context['jsQR'];
+          if (jsQR == null) {
+            print("jsQR not found. Include jsQR library in index.html.");
+// Stop scanning if jsQR is unavailable.
+            timer.cancel();
+            return;
+          }
+          final result = jsQR.apply([imageData.data, _scanCanvas.width, _scanCanvas.height]);
+          if (result != null && result['data'] != null) {
+            print("QR Detected: ${result['data']}");
+            widget.onScan(result['data']);
+            //timer.cancel(); // Stop scanning after detection.
+          } else {
+            print("No QR detected, continuing scanning.");
+            // Do not cancel the timer; simply continue scanning.
+          }
+        } catch (e) {
+          print("Error in scanning: $e");
+          // Ignore error and keep scanning.
+        }
+      }
+    });
+  }
+
+  // Modified function to scan the current frame on demand with notifications
+  void scanFrame() {
+    if (_videoElement != null && _videoElement!.readyState == 4) {
+      _scanCanvas.width = _videoElement!.videoWidth;
+      _scanCanvas.height = _videoElement!.videoHeight;
+      final ctx = _scanCanvas.context2D;
+      ctx.drawImage(_videoElement!, 0, 0);
+      final imageData = ctx.getImageData(0, 0, _scanCanvas.width!, _scanCanvas.height!);
+      print("Manual scan: Video dimensions: ${_videoElement!.videoWidth} x ${_videoElement!.videoHeight}");
+      try {
+        dynamic jsQR = js.context['jsQR'];
+        if (jsQR == null) {
+          print("jsQR not found. Make sure to include it.");
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("jsQR not found. Include it in index.html."))
+          );
+          return;
+        }
+        final result = jsQR.apply([imageData.data, _scanCanvas.width, _scanCanvas.height]);
+        if (result != null && result['data'] != null) {
+          print("QR Detected via manual scan: ${result['data']}");
+          widget.onScan(result['data']);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("QR detected and scanned!"))
+          );
+        } else {
+          print("No QR detected on manual scan.");
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("No QR detected in this frame."))
+          );
+        }
+      } catch (e) {
+        print("Error scanning manually: $e");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error scanning frame: $e"))
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _scanTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // If there was an error, display it.
+    if (_errorMessage != null) {
+      return Center(child: Text(_errorMessage!));
+    }
+    return _videoElement != null
+        ? Stack(
+            children: [
+              HtmlElementView(viewType: 'web-qr-camera'),
+              Positioned(
+                bottom: 10,
+                right: 10,
+                child: ElevatedButton(
+                  onPressed: () {
+                    widget.onScan("Código QR Web");
+                  },
+                  child: Text("Simular escaneo QR"),
+                ),
+              ),
+              // New button to scan the current frame on demand
+              Positioned(
+                bottom: 10,
+                left: 10,
+                child: ElevatedButton(
+                  onPressed: scanFrame,
+                  child: Text("Escanear frame"),
+                ),
+              ),
+            ],
+          )
+        : Center(child: Text("Accediendo a la cámara..."));
   }
 }

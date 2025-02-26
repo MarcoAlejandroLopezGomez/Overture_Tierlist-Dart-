@@ -1,20 +1,20 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <CustomBuild Include="C:\Users\marco\OneDrive\Documentos\NewOverScoutingTierList\new_overscauting_tierlist\build\windows\x64\CMakeFiles\8dd91bf724ace2bb74197446d782d4ef\flutter_windows.dll.rule">
+    <CustomBuild Include="C:\OverScouting\Overture_Tierlist-Dart-\build\windows\x64\CMakeFiles\c821485e7615575ffc41d2e85a003232\flutter_windows.dll.rule">
       <Filter>CMake Rules</Filter>
     </CustomBuild>
-    <CustomBuild Include="C:\Users\marco\OneDrive\Documentos\NewOverScoutingTierList\new_overscauting_tierlist\build\windows\x64\CMakeFiles\ae50a3e6ff594d3f4237bbe433700076\flutter_assemble.rule">
+    <CustomBuild Include="C:\OverScouting\Overture_Tierlist-Dart-\build\windows\x64\CMakeFiles\aef0d0522debb0904328723ac261fc8c\flutter_assemble.rule">
       <Filter>CMake Rules</Filter>
     </CustomBuild>
-    <CustomBuild Include="C:\Users\marco\OneDrive\Documentos\NewOverScoutingTierList\new_overscauting_tierlist\windows\flutter\CMakeLists.txt" />
+    <CustomBuild Include="C:\OverScouting\Overture_Tierlist-Dart-\windows\flutter\CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="C:\Users\marco\OneDrive\Documentos\NewOverScoutingTierList\new_overscauting_tierlist\build\windows\x64\flutter\CMakeFiles\flutter_assemble" />
+    <None Include="C:\OverScouting\Overture_Tierlist-Dart-\build\windows\x64\flutter\CMakeFiles\flutter_assemble" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="CMake Rules">
-      <UniqueIdentifier>{E3B1758A-5925-3CE6-9FB2-2DF96E4799EA}</UniqueIdentifier>
+      <UniqueIdentifier>{8431085E-76B4-3671-AE63-EB762E4DC05C}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

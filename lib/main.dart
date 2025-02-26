@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:image/image.dart' as img;
+//import 'package:image/image.dart' as img;
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:photo_view/photo_view.dart';
@@ -11,6 +11,7 @@ import 'dart:html' as html; // Add this import for web
 import 'package:flutter/services.dart'; // Add this import for LogicalKeyboardKey
 import 'package:uuid/uuid.dart';
 import 'qr_scanner.dart'; // Agregada la importación para Qr Scanner
+
 
 class BoldIntent extends Intent {
   const BoldIntent();
@@ -645,15 +646,18 @@ class CustomerCart extends StatelessWidget {
       height: 150, // Adjust height as needed
       child: DragTarget<ImageData>(
         builder: (context, candidateData, rejectedData) {
-          return ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: customer.items.length + 1,
-            itemBuilder: (context, index) {
-              if (index == customer.items.length) {
-                return const SizedBox(width: 100); // Placeholder for dropping at the end
-              }
-              return buildDraggableImage(customer.items[index], context, index);
-            },
+          return Scrollbar(
+            thumbVisibility: true,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: customer.items.length + 1,
+              itemBuilder: (context, index) {
+                if (index == customer.items.length) {
+                  return const SizedBox(width: 100); // Placeholder for dropping at the end
+                }
+                return buildDraggableImage(customer.items[index], context, index);
+              },
+            ),
           );
         },
         onWillAccept: (data) => !crossOutMode && !editMode,

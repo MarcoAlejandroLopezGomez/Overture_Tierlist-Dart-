@@ -1,4 +1,4 @@
-# Install script for directory: C:/Users/marco/OneDrive/Documentos/NewOverScoutingTierList/new_overscauting_tierlist/windows/runner
+# Install script for directory: C:/OverScouting/Overture_Tierlist-Dart-/windows/runner
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

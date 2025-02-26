@@ -1,13 +1,13 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <CustomBuild Include="C:\Users\marco\OneDrive\Documentos\NewOverScoutingTierList\new_overscauting_tierlist\build\windows\x64\CMakeFiles\ffe5c74fb6af1818ae0efb25d7b4db4c\INSTALL_force.rule">
+    <CustomBuild Include="C:\OverScouting\Overture_Tierlist-Dart-\build\windows\x64\CMakeFiles\227b1b6d76e0087f84c0f933c064f5c0\INSTALL_force.rule">
       <Filter>CMake Rules</Filter>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="CMake Rules">
-      <UniqueIdentifier>{E3B1758A-5925-3CE6-9FB2-2DF96E4799EA}</UniqueIdentifier>
+      <UniqueIdentifier>{8431085E-76B4-3671-AE63-EB762E4DC05C}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>
