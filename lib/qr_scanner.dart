@@ -451,7 +451,7 @@ Future<void> saveInExcel() async {
   void _sendToChatGPT() {
     final originalText = _textController.text;
     final processedText = originalText.replaceAll('\t', ',');
-    final prompt = "Elige, basado en estos datos, al mejor equipo para mi estrategia de mi competencia de FRC.\n\nDatos: " + processedText;
+    final prompt = "Elige, basado en estos datos, al mejor equipo para mi estrategia [pon tu estrategia] de la competencia First Robotics Competition. Format(ScouterInitials/MatchNumber/DriverStation/TeamNumber/StartingPosition/Showed?/CagePosition/Moved?/Timer/CoralL1Autonomous/CoralL2Autonomous/CoralL3Autonomous/CoralL4Autonomous/BargeAlgeAutonomous/ProcessorAlgaeScoredAutonomous/DislogedAlgae?Autonomous/AutoFoul/DislogedAlgae?TeleOp/PickUpLocation/CoralL1TeleOp/CoralL2TeleOp/CoralL3TeleOp/CoralL4TeleOp/BargeAlgaeTeleOp/ProcessorAlgaeTeleOp/PlayedDefense?/FellOver?/TouchedOpposingCage/Died?/EndPosition/Defended?EndGame/OffenseSkill/DefensiveSkill/YellowOrRedCard/Comments)\nDatos: " + processedText;
     Clipboard.setData(ClipboardData(text: prompt));
     html.window.open("https://chat.openai.com/", "_blank");
     ScaffoldMessenger.of(context).showSnackBar(
