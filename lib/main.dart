@@ -50,7 +50,7 @@ class TierListPageState extends State<TierListPage> {
     Customer(name: '2nd Pick', items: [], color: Colors.yellow),
     Customer(name: '3rd Pick', items: [], color: Colors.green),
     Customer(name: 'Ojito', items: [], color: Colors.blue),
-    Customer(name: 'NO', items: [], color: Colors.red),
+    Customer(name: '-', items: [], color: Colors.red),
     Customer(name: 'Defense Pick', items: [], color: Colors.orange),
   ];
 
