@@ -86579,7 +86579,7 @@ A.ayz(new A.apl(e),d,t.z)
 p.vj("Failed to save Excel file: "+A.m(e))}case 1:return A.O(q,r)}})
 return A.P($async$Bb,r)},
 aeJ(){var s,r=null,q=this.e.a.a
-A.ya(new A.oY("Elige, basado en estos datos, al mejor equipo para mi estrategia [pon tu estrategia] de la competencia First Robotics Competition. Format(ScouterInitials/MatchNumber/DriverStation/TeamNumber/StartingPosition/Showed?/CagePosition/Moved?/Timer/CoralL1Autonomous/CoralL2Autonomous/CoralL3Autonomous/CoralL4Autonomous/BargeAlgeAutonomous/ProcessorAlgaeScoredAutonomous/DislogedAlgae?Autonomous/AutoFoul/DislogedAlgae?TeleOp/PickUpLocation/CoralL1TeleOp/CoralL2TeleOp/CoralL3TeleOp/CoralL4TeleOp/BargeAlgaeTeleOp/ProcessorAlgaeTeleOp/PlayedDefense?/FellOver?/TouchedOpposingCage/Died?/EndPosition/Defended?EndGame/OffenseSkill/DefensiveSkill/YellowOrRedCard/Comments)\nDatos: "+A.fa(q,"\t",",")))
+A.ya(new A.oY("Elige, basado en estos datos, al mejor equipo para mi estrategia [pon tu estrategia] de la competencia First Robotics Competition. Format:(ScouterInitials/MatchNumber/RobotTeamNumber/StartingPosition/NoShow/CagePosition/Moved?/CoralL1Autonomous/ScoredCoralL2Autonomous/CoralL3Autonomous/CoralL4Autonomous/BargeAlgaeScoredAutonomous/ProcessorAlgaeAutonomous/DislodgedAlgae?Autonomous/AutoFoul/DislodgedAlgae?TeleOp/PickupLocation/CoralL1TeleOp/CoralL2TeleOp/CoralL3TeleOp/CoralL4TeleOp/BargeAlgaeTeleOp/ProcessorAlgaeTeleOp/CrossedField?/PlayedDefense?/TippedOrFellOver?/TouchedOpposingCage?/Died?/EndPosition/Defended?)\nDatos: "+A.fa(q,"\t",",")))
 s=window.open("https://chat.openai.com/","_blank")
 A.aQV(s)
 this.c.al(t.Pu).f.qU(A.Cr(r,r,r,r,r,B.I,r,A.bT("Prompt copiado y ChatGPT abierto.",r,r,r,r,r,r),r,B.eb,r,r,r,r,r,r,r,r,r))},
