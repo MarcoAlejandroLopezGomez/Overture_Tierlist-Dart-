@@ -56,10 +56,18 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
       Ahora traucida a Dart.
   """;
 
-    // Add the playBeepSound method:
+  // Add the playBeepSound method:
   void playBeepSound() async {
-    final player = AudioPlayer();
-    await player.play(AssetSource('store-scanner-beep-90395.mp3'));
+    try {
+      // Create a player and use AssetSource
+      final player = AudioPlayer();
+      await player.play(AssetSource('store-scanner-beep-90395.mp3'));
+    } catch (e) {
+      print("Asset beep failed, playing fallback beep: $e");
+      // Fallback using a network source (stock beep sound)
+      final fallbackPlayer = AudioPlayer();
+      await fallbackPlayer.play(UrlSource('https://actions.google.com/sounds/v1/alarms/beep_short.ogg'));
+    }
   }
 
   // Controlador para el área de texto principal
@@ -95,16 +103,29 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
     if (isCameraMode) {
       if (!kIsWeb) {
         qrController?.pauseCamera();
+      } else {
+        // When toggling from camera to ASCII, ensure complete camera cleanup
+        // This happens at the WebQRScanner level via dispose()
       }
-      // Else, WebQRScanner will be disposed when not shown.
+      setState(() {
+        isCameraMode = false;
+      });
     } else {
       if (kIsWeb) {
-        _webScannerKey = UniqueKey(); // Force reinitialization
+        _webScannerKey = UniqueKey(); // Force reinitialization with new key
+        // Delay state change slightly to ensure proper cleanup
+        Future.delayed(Duration(milliseconds: 300), () {
+          if (!mounted) return; // Add mounted check
+          setState(() {
+            isCameraMode = true;
+          });
+        });
+        return; // Exit early as we'll set state after delay
       }
+      setState(() {
+        isCameraMode = true;
+      });
     }
-    setState(() {
-      isCameraMode = !isCameraMode;
-    });
   }
 
   // New function to handle QRView creation
@@ -149,6 +170,8 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
   /// Actualiza el mensaje de estado.
   /// Si [displayInMainTextArea] es verdadero, añade el mensaje al área de texto principal.
   void updateStatus(String message, {bool displayInMainTextArea = false}) {
+    if (!mounted) return; // Add mounted check
+    
     setState(() {
       if (displayInMainTextArea) {
         // Se agrega el mensaje al final del área de texto principal
@@ -161,6 +184,7 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
     // Después de 5 segundos se borra el mensaje de estado (si no se muestra en el área principal)
     if (!displayInMainTextArea) {
       Future.delayed(Duration(seconds: 5), () {
+        if (!mounted) return; // Add mounted check
         setState(() {
           statusMessage = "";
         });
@@ -186,12 +210,19 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
 
   @override
   void dispose() {
+    print("OverScoutingApp dispose called");
+    
+    // Cancel all operations that might call setState()
     WidgetsBinding.instance.removeObserver(this);
     qrController?.dispose();
+    qrController = null;
+    
     autosaveTimer?.cancel();
+    autosaveTimer = null;
+    
     _textController.dispose();
-    // Dispose the added FocusNode
     _textFocusNode.dispose();
+    
     super.dispose();
   }
 
@@ -265,11 +296,10 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
   }
 
   /// Guarda el contenido actual en archivos CSV y TXT.
-  /// Se utiliza un diálogo para que el usuario elija la ubicación del archivo CSV.
   Future<void> saveCsvAndTxt() async {
     String content = _textController.text.trim();
     if (content.isEmpty) {
-      // Muestra un diálogo de advertencia si no hay contenido
+      // Show warning dialog if no content
       showDialog(
         context: context,
         builder: (context) {
@@ -291,30 +321,89 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
     }
     
     if (kIsWeb) {
-      // Web: generate CSV content and download
+      // Web: generate CSV content for download
       List<String> lines = content.split('\n');
       List<List<String>> dataList = lines.where((line) => line.isNotEmpty)
           .map((line) => line.split('\t')).toList();
       String csvContent = dataList.map((row) => row.join(',')).join('\n');
       
-      // Trigger CSV download
-      final csvBlob = html.Blob([csvContent], 'text/csv');
-      final csvUrl = html.Url.createObjectUrlFromBlob(csvBlob);
-      final csvAnchor = html.AnchorElement(href: csvUrl)
-        ..setAttribute("download", "data.csv")
-        ..click();
-      html.Url.revokeObjectUrl(csvUrl);
+      // Improved download for mobile browsers
+      final isMobile = html.window.navigator.userAgent.contains('Mobile') || 
+                       html.window.navigator.userAgent.contains('Android') ||
+                       html.window.navigator.userAgent.contains('iPhone');
       
-      // Web: generate TXT content by replacing tabs with commas and download
-      String txtContent = content.replaceAll('\t', ',');
-      final txtBlob = html.Blob([txtContent], 'text/plain');
-      final txtUrl = html.Url.createObjectUrlFromBlob(txtBlob);
-      final txtAnchor = html.AnchorElement(href: txtUrl)
-        ..setAttribute("download", "data.txt")
-        ..click();
-      html.Url.revokeObjectUrl(txtUrl);
-      
-      updateStatus("Data saved to CSV and TXT successfully.");
+      try {
+        // Create CSV blob and URL
+        final csvBlob = html.Blob([csvContent], 'text/csv');
+        final csvUrl = html.Url.createObjectUrlFromBlob(csvBlob);
+        
+        // Create TXT blob and URL
+        String txtContent = content.replaceAll('\t', ',');
+        final txtBlob = html.Blob([txtContent], 'text/plain');
+        final txtUrl = html.Url.createObjectUrlFromBlob(txtBlob);
+        
+        // For mobile browsers, create visible download links
+        if (isMobile) {
+          showDialog(
+            context: context,
+            builder: (context) {
+              return AlertDialog(
+                title: Text('Download Files'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Tap links below to download:'),
+                    SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: () {
+                        html.window.open(csvUrl, '_blank');
+                      },
+                      child: Text('Download CSV'),
+                    ),
+                    SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: () {
+                        html.window.open(txtUrl, '_blank');
+                      },
+                      child: Text('Download TXT'),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      html.Url.revokeObjectUrl(csvUrl);
+                      html.Url.revokeObjectUrl(txtUrl);
+                      Navigator.of(context).pop();
+                    },
+                    child: Text('Close'),
+                  ),
+                ],
+              );
+            },
+          );
+        } else {
+          // Standard desktop browser download with anchors
+          html.AnchorElement(href: csvUrl)
+            ..setAttribute("download", "data.csv")
+            ..click();
+          
+          html.AnchorElement(href: txtUrl)
+            ..setAttribute("download", "data.txt")
+            ..click();
+            
+          // Cleanup URLs after download starts
+          Future.delayed(Duration(seconds: 1), () {
+            html.Url.revokeObjectUrl(csvUrl);
+            html.Url.revokeObjectUrl(txtUrl);
+          });
+        }
+        
+        updateStatus("Data saved to CSV and TXT successfully.");
+      } catch (e) {
+        print("Error saving files: $e");
+        updateStatus("Error saving files: $e");
+      }
       return;
     }
     
@@ -404,8 +493,30 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
     );
   }
 
+  // New method to completely stop camera resources before navigation
+  void _ensureCameraResourcesFreed() {
+    if (kIsWeb) {
+      // Set camera inactive to prevent restart on visibility change
+      if (isCameraMode) {
+        setState(() {
+          isCameraMode = false;
+        });
+      }
+      // Force recreation on next use
+      _webScannerKey = UniqueKey();
+    } else {
+      // Stop mobile camera if active
+      qrController?.pauseCamera();
+      qrController?.dispose();
+      qrController = null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    final bool isSmallScreen = screenSize.width < 600;
+    
     return Scaffold(
       // Barra de aplicación con título
       appBar: AppBar(
@@ -418,6 +529,8 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
           ),
           TextButton(
             onPressed: () {
+              // Ensure camera is fully stopped before navigation
+              _ensureCameraResourcesFreed();
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => TierListPage()),
@@ -431,7 +544,7 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.all(10.0),
+        padding: EdgeInsets.all(isSmallScreen ? 5.0 : 10.0),
         child: Column(
           children: [
             // Modified container: display either ASCII art or camera preview
@@ -444,25 +557,23 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
                 ),
               ],
             ),
-            // Modified container: display either ASCII art, mobile QRView, or web camera preview via WebQRScanner
-            isCameraMode
-                ? Container(
-                    height: 200,
-                    color: Colors.black,
-                    child: kIsWeb
-                        ? WebQRScanner(
-                            key: _webScannerKey,  // Pass the new key here
-                            onScan: (code) {
-                              onQRCodeScanned(code);
-                            },
-                          )
-                        : QRView(
-                            key: qrKey,
-                            onQRViewCreated: _onQRViewCreated,
-                          ),
-                  )
+            // Modified for better mobile display
+            Container(
+              height: isSmallScreen ? 250 : 200, // Taller for small screens
+              color: Colors.black,
+              child: isCameraMode
+                ? kIsWeb
+                  ? WebQRScanner(
+                      key: _webScannerKey,
+                      onScan: (code) {
+                        onQRCodeScanned(code);
+                      },
+                    )
+                  : QRView(
+                      key: qrKey,
+                      onQRViewCreated: _onQRViewCreated,
+                    )
                 : Container(
-                    height: 200,
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.black),
                     ),
@@ -473,6 +584,7 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
                       ),
                     ),
                   ),
+            ),
             SizedBox(height: 10),
             // Wrap the MainTextArea with RawKeyboardListener to capture Tab key
             Expanded(
@@ -553,6 +665,81 @@ class _WebQRScannerState extends State<WebQRScanner> {
   String? _errorMessage; // New state variable for camera errors
   // New: listen to page visibility changes
   StreamSubscription<html.Event>? _visibilitySubscription;
+  String? _selectedDeviceId; // New: store selected camera device id
+  String _cameraLabel = "Default camera"; // New: store camera label
+  bool _cameraActive = true; // New flag to track if camera should be active
+  bool _isPortrait = true;
+  
+  // Generate unique viewType ID for this instance
+  String _uniqueViewType = 'web-qr-camera-${DateTime.now().millisecondsSinceEpoch}';
+
+  // Improved camera selection with better UI
+  Future<void> _selectCamera() async {
+    try {
+      // First request permissions to enumerate devices
+      await html.window.navigator.mediaDevices!.getUserMedia({'video': true});
+      
+      final devices = await html.window.navigator.mediaDevices!.enumerateDevices();
+      final videoDevices = devices.where((d) => d.kind == 'videoinput').toList();
+      
+      if (videoDevices.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("No cameras found on this device"))
+        );
+        return;
+      }
+      
+      // Create a dialog to select camera instead of using prompt
+      await showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text("Select Camera"),
+            content: Container(
+              width: double.maxFinite,
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: videoDevices.length,
+                itemBuilder: (context, index) {
+                  return ListTile(
+                    title: Text(videoDevices[index].label.isEmpty 
+                      ? "Camera ${index + 1}" 
+                      : videoDevices[index].label),
+                    onTap: () {
+                      _selectedDeviceId = videoDevices[index].deviceId;
+                      _cameraLabel = videoDevices[index].label.isEmpty 
+                        ? "Camera ${index + 1}" 
+                        : videoDevices[index].label;
+                      Navigator.of(context).pop();
+                      
+                      // Fully stop current camera and start new one
+                      _cleanupResources();
+                      _initializeCamera();
+                      
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text("Switched to $_cameraLabel"))
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text("Cancel"),
+              ),
+            ],
+          );
+        }
+      );
+    } catch (e) {
+      print("Error selecting camera: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error selecting camera: $e"))
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -561,58 +748,59 @@ class _WebQRScannerState extends State<WebQRScanner> {
     // Listen for visibility changes in web
     _visibilitySubscription = html.document.onVisibilityChange.listen((event) {
       if (html.document.visibilityState == 'hidden') {
-        if (_videoElement != null && _videoElement!.srcObject != null) {
-          final stream = _videoElement!.srcObject as html.MediaStream;
-          stream.getTracks().forEach((track) => track.stop());
-          print("Camera stopped due to page hidden.");
-        }
+        // Always stop camera when page is hidden
+        _cleanupResources();
+        _cameraActive = true; // Remember we should restart on visible
+        print("Camera stopped due to page hidden.");
       } else if (html.document.visibilityState == 'visible') {
-        print("Page visible; reinitialize camera.");
-        _initializeCamera();
+        // Only restart if we were previously active
+        if (_cameraActive) {
+          print("Page visible; reinitialize camera.");
+          _initializeCamera();
+        }
       }
     });
+    // Check orientation at start
+    _checkOrientation();
+    _listenForOrientationChanges();
+    
+    // Add event listeners for orientation change
+    html.window.addEventListener('resize', (_) => _checkOrientation());
+    html.window.addEventListener('orientationchange', (_) => _checkOrientation());
   }
 
   // New: override didUpdateWidget to reinitialize camera if missing
   @override
   void didUpdateWidget(covariant WebQRScanner oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_videoElement == null) {
+    if (_videoElement == null && _cameraActive) {
+      print("Camera element missing, reinitializing");
       _initializeCamera();
     }
   }
 
-  // Modified camera initialization with error handling
-  void _initializeCamera() async {
-    try {
-      final stream = await html.window.navigator.mediaDevices!
-          .getUserMedia({'video': true});
-      if (stream == null) {
-        throw "No camera stream available.";
+  // First _initializeCamera implementation removed to avoid duplication
+
+  // Add a helper method to clean up resources
+  void _cleanupResources() {
+    print("Cleaning up camera resources...");
+    _scanTimer?.cancel();
+    _scanTimer = null;
+    
+    if (_videoElement != null && _videoElement!.srcObject != null) {
+      try {
+        final stream = _videoElement!.srcObject as html.MediaStream;
+        stream.getTracks().forEach((track) {
+          print("Stopping track: ${track.kind}");
+          track.stop();
+        });
+        _videoElement!.srcObject = null;
+      } catch (e) {
+        print("Error stopping camera tracks: $e");
       }
-      _videoElement = html.VideoElement()
-        ..autoplay = true
-        ..srcObject = stream;
-      // Set explicit style height and width to avoid defaulting warning.
-      _videoElement!.style.height = '200px';
-      _videoElement!.style.width = '100%';
-      // Register the video element for HtmlElementView
-      // ignore:undefined_prefixed_name
-      ui.platformViewRegistry.registerViewFactory(
-        'web-qr-camera',
-        (int viewId) => _videoElement!,
-      );
-      setState(() {
-        _errorMessage = null;
-      });
-      _startScanning(); // Begin scanning once camera is ready
-    } catch (e) {
-      print("Error accessing camera: $e");
-      setState(() {
-        _errorMessage = "Error accessing camera: $e";
-        _videoElement = null;
-      });
     }
+    _videoElement = null;
+    _cameraActive = false; // Mark camera as inactive
   }
 
   // New helper method to apply a B&W high contrast filter.
@@ -635,7 +823,14 @@ class _WebQRScannerState extends State<WebQRScanner> {
 
   // Modified _startScanning() with extra logs and faster scanning frequency.
   void _startScanning() {
+    _scanTimer?.cancel(); // Cancel any existing timer first
+    
     _scanTimer = Timer.periodic(Duration(seconds: 2), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      
       if (_videoElement != null && _videoElement!.readyState == 4) {
         print("Video dimensions: ${_videoElement!.videoWidth} x ${_videoElement!.videoHeight}");
         _scanCanvas.width = _videoElement!.videoWidth;
@@ -656,7 +851,7 @@ class _WebQRScannerState extends State<WebQRScanner> {
             timer.cancel();
             return;
           }
-          final result = jsQR.apply([imageData.data, _scanCanvas.width, _scanCanvas.height]);
+          final result = jsQR.apply([filteredData, _scanCanvas.width, _scanCanvas.height]);
           if (result != null && result['data'] != null) {
             print("QR Detected: ${result['data']}");
             widget.onScan(result['data']);
@@ -714,50 +909,273 @@ class _WebQRScannerState extends State<WebQRScanner> {
     }
   }
 
-  @override
-  void dispose() {
-    _visibilitySubscription?.cancel();
-    if (_videoElement != null && _videoElement!.srcObject != null) {
-      final stream = _videoElement!.srcObject as html.MediaStream;
-      stream.getTracks().forEach((track) {
-        track.stop();
-      });
-    }
-    _scanTimer?.cancel();
-    super.dispose();
+  // Check and update orientation state
+  void _checkOrientation() {
+    // Update orientation flag based on window dimensions
+    setState(() {
+      _isPortrait = html.window.innerHeight! > html.window.innerWidth!;
+    });
+  }
+  
+  // Add listener for orientation changes
+  void _listenForOrientationChanges() {
+    html.window.matchMedia("(orientation: portrait)").addListener((_) {
+      _checkOrientation();
+    });
   }
 
+  // Improved camera initialization with better mobile support
+  void _initializeCamera() async {
+    _cleanupResources();
+    
+    try {
+      // Show accessing camera message
+      setState(() {
+        _errorMessage = "Accessing camera...";
+      });
+      
+      // Prepare constraints with facingMode for mobile devices
+      Map<String, dynamic> constraints;
+      final isMobile = html.window.navigator.userAgent.contains('Mobile');
+      
+      if (_selectedDeviceId != null) {
+        constraints = {
+          'video': {'deviceId': {'exact': _selectedDeviceId}}
+        };
+      } else if (isMobile) {
+        // Use environment facing camera (back camera) by default on mobile
+        constraints = {
+          'video': {'facingMode': 'environment'}
+        };
+      } else {
+        constraints = {'video': true};
+      }
+      
+      print("Requesting camera with constraints: $constraints");
+      final stream = await html.window.navigator.mediaDevices!.getUserMedia(constraints);
+      if (stream == null) throw "No camera stream available.";
+      
+      _videoElement = html.VideoElement()
+        ..autoplay = true
+        ..muted = true // Some browsers require muted for autoplay
+        ..setAttribute('playsinline', 'true') // Required for iOS
+        ..srcObject = stream
+        ..style.height = '100%'
+        ..style.width = '100%'
+        ..style.objectFit = 'cover';
+
+      // Register new factory with unique ID
+      ui.platformViewRegistry.registerViewFactory(
+        _uniqueViewType,
+        (int viewId) => _videoElement!,
+      );
+      
+      if (!mounted) return;
+      
+      setState(() {
+        _errorMessage = null;
+      });
+      
+      // Wait for video to be ready before starting scanning
+      _videoElement!.onCanPlay.listen((_) {
+        if (mounted) {
+          setState(() {
+            _cameraActive = true;
+          });
+          _startScanning();
+        }
+      });
+    } catch (e) {
+      print("Camera access error: $e");
+      if (!mounted) return;
+      
+      String errorMsg = "Camera access error";
+      
+      // More specific error messages for common camera access issues
+      if (e.toString().contains('NotAllowedError') || 
+          e.toString().contains('Permission denied')) {
+        errorMsg = "Camera permission denied. Please allow camera access.";
+      } else if (e.toString().contains('NotFoundError') ||
+                 e.toString().contains('no camera')) {
+        errorMsg = "No camera found on this device.";
+      } else if (e.toString().contains('NotReadableError') || 
+                 e.toString().contains('already in use')) {
+        errorMsg = "Camera is already in use by another application.";
+      }
+      
+      setState(() {
+        _errorMessage = errorMsg;
+        _videoElement = null;
+        _cameraActive = false;
+      });
+    }
+  }
+
+  // Add button for switching between front and back camera on mobile
+  void _switchCamera() async {
+    final isMobile = html.window.navigator.userAgent.contains('Mobile');
+    if (!isMobile) return;
+    
+    try {
+      final stream = _videoElement?.srcObject as html.MediaStream?;
+      if (stream != null) {
+        // Get current facingMode
+        final videoTrack = stream.getVideoTracks().first;
+        final settings = videoTrack.getSettings();
+        final facingMode = settings['facingMode'];
+        
+        // Toggle facingMode
+        final newFacingMode = facingMode == 'environment' ? 'user' : 'environment';
+        
+        // Stop current stream
+        _cleanupResources();
+        
+        // Request new stream with toggled facingMode
+        final newConstraints = {
+          'video': {'facingMode': newFacingMode}
+        };
+        
+        setState(() {
+          _errorMessage = "Switching camera...";
+        });
+        
+        // Re-initialize with new constraints
+        final newStream = await html.window.navigator.mediaDevices!.getUserMedia(newConstraints);
+        
+        _videoElement = html.VideoElement()
+          ..autoplay = true
+          ..muted = true
+          ..setAttribute('playsinline', 'true')
+          ..srcObject = newStream
+          ..style.height = '100%'
+          ..style.width = '100%'
+          ..style.objectFit = 'cover';
+          
+        // Register with new factory
+        ui.platformViewRegistry.registerViewFactory(
+          _uniqueViewType + 'switched',
+          (int viewId) => _videoElement!,
+        );
+        
+        if (!mounted) return;
+        
+        setState(() {
+          _errorMessage = null;
+          _uniqueViewType = _uniqueViewType + 'switched';
+        });
+        
+        _videoElement!.onCanPlay.listen((_) {
+          if (mounted) {
+            _startScanning();
+          }
+        });
+      }
+    } catch (e) {
+      print("Error switching camera: $e");
+      // Revert to previous state
+      _initializeCamera();
+    }
+  }
+  
   @override
   Widget build(BuildContext context) {
-    // If there was an error, display it.
+    // Create a responsive layout based on screen size
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600 || 
+                     html.window.navigator.userAgent.contains('Mobile');
+    
     if (_errorMessage != null) {
-      return Center(child: Text(_errorMessage!));
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error, color: Colors.red, size: 32),
+            SizedBox(height: 8),
+            Text(_errorMessage!, textAlign: TextAlign.center),
+            SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _initializeCamera,
+              child: Text("Retry Camera Access"),
+            ),
+          ],
+        ),
+      );
     }
+    
     return _videoElement != null
         ? Stack(
             children: [
-              HtmlElementView(viewType: 'web-qr-camera'),
+              // Camera view
+              HtmlElementView(viewType: _uniqueViewType),
+              
+              // Camera info with low opacity container
               Positioned(
-                bottom: 10,
-                right: 10,
-                child: ElevatedButton(
-                  onPressed: () {
-                    widget.onScan("Código QR Web");
-                  },
-                  child: Text("Simular escaneo QR"),
+                top: 10,
+                left: 10,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    "Active: $_cameraLabel",
+                    style: TextStyle(color: Colors.white, fontSize: 12),
+                  ),
                 ),
               ),
-              // New button to scan the current frame on demand
+              
+              // Button container at bottom with semi-transparent background
               Positioned(
-                bottom: 10,
-                left: 10,
-                child: ElevatedButton(
-                  onPressed: scanFrame,
-                  child: Text("Escanear frame"),
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  color: Colors.black.withOpacity(0.5),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.qr_code_scanner, color: Colors.white),
+                        onPressed: scanFrame,
+                        tooltip: "Scan Frame",
+                      ),
+                      if (isMobile) IconButton(
+                        icon: Icon(Icons.flip_camera_android, color: Colors.white),
+                        onPressed: _switchCamera,
+                        tooltip: "Switch Camera",
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.camera_alt, color: Colors.white),
+                        onPressed: _selectCamera,
+                        tooltip: "Select Camera",
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           )
-        : Center(child: Text("Accediendo a la cámara..."));
+        : Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text("Initializing camera...", style: TextStyle(color: Colors.white)),
+              ],
+            ),
+          );
+  }
+  
+  @override
+  void dispose() {
+    print("WebQRScanner disposing...");
+    html.window.removeEventListener('resize', (_) => _checkOrientation());
+    html.window.removeEventListener('orientationchange', (_) => _checkOrientation());
+    _visibilitySubscription?.cancel();
+    _cleanupResources();
+    super.dispose();
   }
 }

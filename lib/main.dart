@@ -100,6 +100,7 @@ class TierListPageState extends State<TierListPage> {
         actions: [
           TextButton(
             onPressed: () {
+              // Clean navigation to QR scanner page
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => OverScoutingApp()),
@@ -616,7 +617,7 @@ class DraggableImage extends StatelessWidget {
   }
 }
 
-class CustomerCart extends StatelessWidget {
+class CustomerCart extends StatefulWidget {  // Change to StatefulWidget
   const CustomerCart({
     super.key,
     required this.customer,
@@ -625,7 +626,7 @@ class CustomerCart extends StatelessWidget {
     required this.editMode,
     required this.onImageDropped,
     required this.onEditImageText,
-    required this.onDeleteImage, // Add this line
+    required this.onDeleteImage,
   });
 
   final Customer customer;
@@ -634,100 +635,84 @@ class CustomerCart extends StatelessWidget {
   final bool editMode;
   final Function(ImageData) onImageDropped;
   final Function(ImageData) onEditImageText;
-  final Function(ImageData) onDeleteImage; // Add this line
+  final Function(ImageData) onDeleteImage;
+
+  @override
+  State<CustomerCart> createState() => _CustomerCartState();
+}
+
+class _CustomerCartState extends State<CustomerCart> {
+  // Add a scroll controller
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();  // Dispose the controller
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: customer.color.withOpacity(0.3),
-        border: Border.all(color: customer.color, width: 2),
+        color: widget.customer.color.withOpacity(0.3),
+        border: Border.all(color: widget.customer.color, width: 2),
       ),
-      height: 150, // Adjust height as needed
+      height: 150,
       child: DragTarget<ImageData>(
         builder: (context, candidateData, rejectedData) {
           return Scrollbar(
+            controller: _scrollController,  // Assign controller to Scrollbar
             thumbVisibility: true,
             child: ListView.builder(
+              controller: _scrollController,  // Also assign to ListView
               scrollDirection: Axis.horizontal,
-              itemCount: customer.items.length + 1,
+              itemCount: widget.customer.items.length + 1,
               itemBuilder: (context, index) {
-                if (index == customer.items.length) {
-                  return const SizedBox(width: 100); // Placeholder for dropping at the end
+                if (index == widget.customer.items.length) {
+                  return const SizedBox(width: 100);
                 }
-                return buildDraggableImage(customer.items[index], context, index);
+                return buildDraggableImage(widget.customer.items[index], context, index);
               },
             ),
           );
         },
-        onWillAccept: (data) => !crossOutMode && !editMode,
+        onWillAccept: (data) => !widget.crossOutMode && !widget.editMode,
         onAccept: (imageData) {
-          if (!crossOutMode && !editMode) {
-            onImageDropped(imageData);
+          if (!widget.crossOutMode && !widget.editMode) {
+            widget.onImageDropped(imageData);
           }
         },
       ),
     );
   }
 
+  // Modify the method to use widget. prefix
   Widget buildDraggableImage(ImageData imageData, BuildContext context, int index) {
     return DragTarget<ImageData>(
       builder: (context, candidateData, rejectedData) {
-        return crossOutMode || editMode
+        return widget.crossOutMode || widget.editMode
             ? buildImage(imageData, context)
             : Draggable<ImageData>(
                 data: imageData,
                 feedback: Material(
-                  child: SizedBox(
-                    width: 100,
-                    height: 100,
-                    child: Stack(
-                      children: [
-                        Column(
-                          children: [
-                            if (imageData.title.isNotEmpty)
-                              Text(
-                                imageData.title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            Expanded(
-                              child: Image.memory(
-                                imageData.bytes,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (imageData.crossedOut)
-                          const Center(
-                            child: Icon(
-                              Icons.clear,
-                              color: Colors.red,
-                              size: 100, // Make the cross bigger
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
+                  // ...existing code...
                 ),
-                childWhenDragging: Container(), // Display an empty container when dragging
+                childWhenDragging: Container(),
                 child: buildImage(imageData, context),
                 onDraggableCanceled: (velocity, offset) {
-                  if (crossOutMode || editMode) {
+                  if (widget.crossOutMode || widget.editMode) {
                     return;
                   }
                 },
-                ignoringFeedbackSemantics: crossOutMode || editMode,
+                ignoringFeedbackSemantics: widget.crossOutMode || widget.editMode,
               );
       },
-      onWillAccept: (data) => !crossOutMode && !editMode,
+      onWillAccept: (data) => !widget.crossOutMode && !widget.editMode,
       onAccept: (imageData) {
-        if (!crossOutMode && !editMode) {
-          customer.items.remove(imageData);
-          customer.items.insert(index, imageData);
+        if (!widget.crossOutMode && !widget.editMode) {
+          widget.customer.items.remove(imageData);
+          widget.customer.items.insert(index, imageData);
           (context as Element).markNeedsBuild();
         }
       },
@@ -737,7 +722,7 @@ class CustomerCart extends StatelessWidget {
   Widget buildImage(ImageData imageData, BuildContext context) {
     return GestureDetector(
       onTap: () {
-        if (crossOutMode) {
+        if (widget.crossOutMode) {
           imageData.crossedOut = !imageData.crossedOut;
           (context as Element).markNeedsBuild();
         }
@@ -779,7 +764,7 @@ class CustomerCart extends StatelessWidget {
               child: IconButton(
                 icon: const Icon(Icons.edit, color: Colors.white),
                 onPressed: () {
-                  onEditImageText(imageData);
+                  widget.onEditImageText(imageData);
                 },
               ),
             ),
@@ -789,7 +774,7 @@ class CustomerCart extends StatelessWidget {
               child: IconButton(
                 icon: const Icon(Icons.delete, color: Colors.red, size: 20),
                 onPressed: () {
-                  onDeleteImage(imageData);
+                  widget.onDeleteImage(imageData);
                   (context as Element).markNeedsBuild();
                 },
               ),
