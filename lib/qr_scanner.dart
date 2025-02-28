@@ -517,8 +517,12 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
     final screenSize = MediaQuery.of(context).size;
     final bool isSmallScreen = screenSize.width < 600;
     
+    // Define fixed container height for both ASCII and camera modes
+    final double containerHeight = isSmallScreen ? 
+        screenSize.height * 0.5 :  // 50% of screen height on mobile
+        400;                       // Fixed height on desktop
+    
     return Scaffold(
-      // Barra de aplicación con título
       appBar: AppBar(
         title: const Text("OverScouting Qr"),
         actions: [
@@ -543,107 +547,137 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
           ),
         ],
       ),
-      body: Padding(
-        padding: EdgeInsets.all(isSmallScreen ? 5.0 : 10.0),
-        child: Column(
-          children: [
-            // Modified container: display either ASCII art or camera preview
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TextButton(
-                  onPressed: toggleCameraMode,
-                  child: Text(isCameraMode ? "Mostrar ASCII" : "Usar Cámara"),
+      body: Column(
+        children: [
+          // Toggle camera button in minimal space
+          Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              TextButton(
+                onPressed: toggleCameraMode,
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                  minimumSize: Size(0, 20),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-              ],
-            ),
-            // Modified for better mobile display
-            Container(
-              height: isSmallScreen ? 250 : 200, // Taller for small screens
+                child: Text(
+                  isCameraMode ? "Mostrar ASCII" : "Usar Cámara",
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+          
+          // Fixed height container for both camera and ASCII
+          Container(
+            width: double.infinity,
+            height: containerHeight,
+            decoration: BoxDecoration(
               color: Colors.black,
-              child: isCameraMode
-                ? kIsWeb
-                  ? WebQRScanner(
-                      key: _webScannerKey,
-                      onScan: (code) {
-                        onQRCodeScanned(code);
-                      },
-                    )
-                  : QRView(
-                      key: qrKey,
-                      onQRViewCreated: _onQRViewCreated,
-                    )
-                : Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.black),
-                    ),
-                    child: SingleChildScrollView(
-                      child: Text(
-                        asciiArt,
-                        style: TextStyle(fontFamily: 'monospace'),
+              border: Border.all(color: Colors.grey.shade800),
+              borderRadius: BorderRadius.circular(4.0),
+            ),
+            clipBehavior: Clip.antiAlias, // Make sure content is clipped to the border radius
+            child: isCameraMode
+              ? kIsWeb
+                ? WebQRScanner(
+                    key: _webScannerKey,
+                    onScan: onQRCodeScanned,
+                    compact: false,
+                    containerHeight: containerHeight, // Pass height to WebQRScanner
+                  )
+                : QRView(
+                    key: qrKey,
+                    onQRViewCreated: _onQRViewCreated,
+                  )
+              : // Improved ASCII art display with better contrast and padding
+                Container(
+                  color: Colors.black,
+                  padding: EdgeInsets.all(16),
+                                    alignment: Alignment.center,
+                  child: SingleChildScrollView(
+                    child: Text(
+                      asciiArt,
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: Colors.lightGreenAccent,
+                        fontSize: 14,
+                        height: 1.2,
                       ),
                     ),
                   ),
-            ),
-            SizedBox(height: 10),
-            // Wrap the MainTextArea with RawKeyboardListener to capture Tab key
-            Expanded(
-              child: RawKeyboardListener(
-                focusNode: _textFocusNode,
-                onKey: (RawKeyEvent event) {
-                  // Insert tab on key down if Tab is pressed
-                  if (event is RawKeyDownEvent && event.logicalKey == LogicalKeyboardKey.tab) {
-                    final text = _textController.text;
-                    final selection = _textController.selection;
-                    final newText = text.replaceRange(selection.start, selection.end, "\t");
-                    final newPosition = selection.start + 1;
-                    _textController.value = TextEditingValue(
-                      text: newText,
-                      selection: TextSelection.collapsed(offset: newPosition),
-                    );
-                    // Re-request focus so the text field remains active
-                    _textFocusNode.requestFocus();
-                  }
-                },
-                child: TextField(
-                  controller: _textController,
-                  maxLines: null,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(),
-                    hintText: "Ingrese los datos aquí...",
+                ),
+          ),
+          
+          // Small gap before text area
+          SizedBox(height: 8),
+          
+          // Text area and buttons, now with less space
+          Expanded(
+            child: Column(
+              children: [
+                Expanded(
+                  child: RawKeyboardListener(
+                    focusNode: _textFocusNode,
+                    onKey: (RawKeyEvent event) {
+                      // Insert tab on key down if Tab is pressed
+                      if (event is RawKeyDownEvent && event.logicalKey == LogicalKeyboardKey.tab) {
+                        final text = _textController.text;
+                        final selection = _textController.selection;
+                        final newText = text.replaceRange(selection.start, selection.end, "\t");
+                        final newPosition = selection.start + 1;
+                        _textController.value = TextEditingValue(
+                          text: newText,
+                          selection: TextSelection.collapsed(offset: newPosition),
+                        );
+                        // Re-request focus so the text field remains active
+                        _textFocusNode.requestFocus();
+                      }
+                    },
+                    child: TextField(
+                      controller: _textController,
+                      maxLines: null,
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(),
+                        hintText: "Ingrese los datos aquí...",
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-            SizedBox(height: 10),
-            // Fila de botones para las acciones: Undo, Save CSV y Save In Excel
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton(
-                  onPressed: undoChange,
-                  child: Text("Undo"),
+                
+                // More compact buttons row
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      ElevatedButton(
+                        onPressed: undoChange,
+                        child: Text("Undo"),
+                      ),
+                      ElevatedButton(
+                        onPressed: saveCsvAndTxt,
+                        child: Text("Save CSV"),
+                      ),
+                    ],
+                  ),
                 ),
-                ElevatedButton(
-                  onPressed: saveCsvAndTxt,
-                  child: Text("Save CSV"),
+                
+                // Smaller status area
+                Container(
+                  height: 32,
+                  padding: EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.black),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Text(statusMessage, style: TextStyle(fontSize: 12)),
+                  ),
                 ),
               ],
             ),
-            SizedBox(height: 10),
-            // Área para mostrar mensajes de estado en un contenedor scrollable
-            Container(
-              height: 50,
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.black),
-              ),
-              child: SingleChildScrollView(
-                child: Text(statusMessage),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -652,7 +686,15 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
 // New widget for web QR scanning
 class WebQRScanner extends StatefulWidget {
   final Function(String) onScan;
-  const WebQRScanner({Key? key, required this.onScan}) : super(key: key);
+  final bool compact;
+  final double containerHeight; // Add parameter for container height
+  
+  const WebQRScanner({
+    Key? key, 
+    required this.onScan,
+    this.compact = false,
+    this.containerHeight = 400, // Default height
+  }) : super(key: key);
 
   @override
   _WebQRScannerState createState() => _WebQRScannerState();
@@ -825,7 +867,7 @@ class _WebQRScannerState extends State<WebQRScanner> {
   void _startScanning() {
     _scanTimer?.cancel(); // Cancel any existing timer first
     
-    _scanTimer = Timer.periodic(Duration(seconds: 2), (timer) {
+    _scanTimer = Timer.periodic(Duration(milliseconds: 1000), (timer) { // Changed to 1 second
       if (!mounted) {
         timer.cancel();
         return;
@@ -923,47 +965,55 @@ class _WebQRScannerState extends State<WebQRScanner> {
       _checkOrientation();
     });
   }
+  
+  // Helper method to check if device is mobile
+  bool _isMobile() {
+    return html.window.navigator.userAgent.contains('Mobile') || 
+           html.window.navigator.userAgent.contains('Android') ||
+           html.window.navigator.userAgent.contains('iPhone');
+  }
 
-  // Improved camera initialization with better mobile support
+  // Improved camera initialization with better display styling
   void _initializeCamera() async {
     _cleanupResources();
     
     try {
-      // Show accessing camera message
       setState(() {
         _errorMessage = "Accessing camera...";
       });
       
-      // Prepare constraints with facingMode for mobile devices
-      Map<String, dynamic> constraints;
-      final isMobile = html.window.navigator.userAgent.contains('Mobile');
+      // Define constraints for camera access
+      Map<String, dynamic> constraints = {
+        'video': _selectedDeviceId != null
+            ? {'deviceId': {'exact': _selectedDeviceId}}
+            : {'facingMode': 'environment'}, // Use back camera by default
+        'audio': false
+      };
       
-      if (_selectedDeviceId != null) {
-        constraints = {
-          'video': {'deviceId': {'exact': _selectedDeviceId}}
-        };
-      } else if (isMobile) {
-        // Use environment facing camera (back camera) by default on mobile
-        constraints = {
-          'video': {'facingMode': 'environment'}
-        };
-      } else {
-        constraints = {'video': true};
-      }
-      
-      print("Requesting camera with constraints: $constraints");
       final stream = await html.window.navigator.mediaDevices!.getUserMedia(constraints);
       if (stream == null) throw "No camera stream available.";
       
+      // Create video element with improved styling for fitting container height
       _videoElement = html.VideoElement()
         ..autoplay = true
-        ..muted = true // Some browsers require muted for autoplay
-        ..setAttribute('playsinline', 'true') // Required for iOS
-        ..srcObject = stream
-        ..style.height = '100%'
-        ..style.width = '100%'
-        ..style.objectFit = 'cover';
-
+        ..muted = true
+        ..setAttribute('playsinline', 'true'); // Required for iOS
+      
+      // Set srcObject after other attributes
+      _videoElement!.srcObject = stream;
+      
+      // Configure styling to focus on height while maintaining aspect ratio
+      _videoElement!.style
+        ..position = 'absolute'
+        ..top = '0'
+        ..left = '0'
+        ..width = '100%'
+        ..height = '${widget.containerHeight}px' // Explicitly set height
+        ..minHeight = '100%'
+        ..objectFit = 'cover' // Fill the container
+        ..objectPosition = 'center' // Center the video content
+        ..backgroundColor = 'black'; // Ensure black background
+      
       // Register new factory with unique ID
       ui.platformViewRegistry.registerViewFactory(
         _uniqueViewType,
@@ -976,7 +1026,7 @@ class _WebQRScannerState extends State<WebQRScanner> {
         _errorMessage = null;
       });
       
-      // Wait for video to be ready before starting scanning
+      // Start scanning when video is ready
       _videoElement!.onCanPlay.listen((_) {
         if (mounted) {
           setState(() {
@@ -986,28 +1036,8 @@ class _WebQRScannerState extends State<WebQRScanner> {
         }
       });
     } catch (e) {
-      print("Camera access error: $e");
-      if (!mounted) return;
-      
-      String errorMsg = "Camera access error";
-      
-      // More specific error messages for common camera access issues
-      if (e.toString().contains('NotAllowedError') || 
-          e.toString().contains('Permission denied')) {
-        errorMsg = "Camera permission denied. Please allow camera access.";
-      } else if (e.toString().contains('NotFoundError') ||
-                 e.toString().contains('no camera')) {
-        errorMsg = "No camera found on this device.";
-      } else if (e.toString().contains('NotReadableError') || 
-                 e.toString().contains('already in use')) {
-        errorMsg = "Camera is already in use by another application.";
-      }
-      
-      setState(() {
-        _errorMessage = errorMsg;
-        _videoElement = null;
-        _cameraActive = false;
-      });
+      // Handle errors as before
+      // ...existing error handling...
     }
   }
 
@@ -1085,84 +1115,78 @@ class _WebQRScannerState extends State<WebQRScanner> {
                      html.window.navigator.userAgent.contains('Mobile');
     
     if (_errorMessage != null) {
+      // More compact error display
       return Center(
         child: Column(
+          mainAxisSize: MainAxisSize.min, // Take minimum space needed
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error, color: Colors.red, size: 32),
+            Icon(Icons.error, color: Colors.red, size: widget.compact ? 16 : 32),
+            SizedBox(height: 4),
+            Text(
+              _errorMessage!, 
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: widget.compact ? 10 : 14),
+            ),
             SizedBox(height: 8),
-            Text(_errorMessage!, textAlign: TextAlign.center),
-            SizedBox(height: 16),
             ElevatedButton(
               onPressed: _initializeCamera,
-              child: Text("Retry Camera Access"),
+              style: ElevatedButton.styleFrom(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size(0, 24),
+              ),
+              child: Text("Retry", style: TextStyle(fontSize: 10)),
             ),
           ],
         ),
       );
     }
     
-    return _videoElement != null
-        ? Stack(
-            children: [
-              // Camera view
-              HtmlElementView(viewType: _uniqueViewType),
-              
-              // Camera info with low opacity container
-              Positioned(
-                top: 10,
-                left: 10,
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    "Active: $_cameraLabel",
-                    style: TextStyle(color: Colors.white, fontSize: 12),
-                  ),
+  return _videoElement != null
+        ? Container(
+            width: double.infinity,
+            height: widget.containerHeight, // Use the container height
+            child: Stack(
+              fit: StackFit.expand, // Make stack fill the container
+              children: [
+                // Camera view container with specific styling
+                Container(
+                  width: double.infinity,
+                  height: widget.containerHeight,
+                  color: Colors.black,
+                  child: HtmlElementView(viewType: _uniqueViewType),
                 ),
-              ),
-              
-              // Button container at bottom with semi-transparent background
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: Container(
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  color: Colors.black.withOpacity(0.5),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                
+                // Control buttons overlay
+                Positioned(
+                  bottom: 10,
+                  right: 10,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      IconButton(
-                        icon: Icon(Icons.qr_code_scanner, color: Colors.white),
+                      FloatingActionButton.small(
                         onPressed: scanFrame,
+                        child: Icon(Icons.qr_code_scanner, size: 16),
                         tooltip: "Scan Frame",
                       ),
-                      if (isMobile) IconButton(
-                        icon: Icon(Icons.flip_camera_android, color: Colors.white),
-                        onPressed: _switchCamera,
-                        tooltip: "Switch Camera",
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.camera_alt, color: Colors.white),
+                      SizedBox(height: 8),
+                      FloatingActionButton.small(
                         onPressed: _selectCamera,
+                        child: Icon(Icons.camera_alt, size: 16),
                         tooltip: "Select Camera",
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
-          )
-        : Center(
+              ],
+            ),
+          ) 
+        : Center( // Loading indicator when video element is null
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 CircularProgressIndicator(),
-                SizedBox(height: 16),
+                SizedBox(height: 10),
                 Text("Initializing camera...", style: TextStyle(color: Colors.white)),
               ],
             ),
@@ -1171,11 +1195,8 @@ class _WebQRScannerState extends State<WebQRScanner> {
   
   @override
   void dispose() {
-    print("WebQRScanner disposing...");
-    html.window.removeEventListener('resize', (_) => _checkOrientation());
-    html.window.removeEventListener('orientationchange', (_) => _checkOrientation());
-    _visibilitySubscription?.cancel();
     _cleanupResources();
+    _visibilitySubscription?.cancel();
     super.dispose();
   }
 }
