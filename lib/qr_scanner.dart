@@ -4,7 +4,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:excel/excel.dart' as ex; // Paquete para generar archivos Excel
+//import 'package:excel/excel.dart' as ex; // Paquete para generar archivos Excel
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:html' as html; // Only used on web
 import 'package:qr_code_scanner/qr_code_scanner.dart';  // Import for QR code scanning
@@ -12,7 +12,8 @@ import 'main.dart'; // Agrega esta línea para navegar a TierListPage
 import 'dart:ui_web' as ui; // New import for web view registry
 import 'dart:js' as js; // New import for calling jsQR
 import 'dart:typed_data';
-
+import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/widgets.dart'; // Add import for widgets binding observer
 
 /// Función principal que arranca la aplicación.
 void main() {
@@ -39,7 +40,7 @@ class OverScoutingApp extends StatefulWidget {
   _OverScoutingAppState createState() => _OverScoutingAppState();
 }
 
-class _OverScoutingAppState extends State<OverScoutingApp> {
+class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingObserver {
   // ASCII art que se mostrará en la parte superior
   final String asciiArt = r"""
     .___                 ____                  _   _                ___       
@@ -54,6 +55,12 @@ class _OverScoutingAppState extends State<OverScoutingApp> {
       Agradecemos la aplicación de QRScout de Red Hawk Robotics 2713.
       Ahora traucida a Dart.
   """;
+
+    // Add the playBeepSound method:
+  void playBeepSound() async {
+    final player = AudioPlayer();
+    await player.play(AssetSource('store-scanner-beep-90395.mp3'));
+  }
 
   // Controlador para el área de texto principal
   final TextEditingController _textController = TextEditingController();
@@ -81,9 +88,20 @@ class _OverScoutingAppState extends State<OverScoutingApp> {
   bool isCameraMode = false; // State flag
   final GlobalKey qrKey = GlobalKey(debugLabel: 'QR'); // Still used for mobile
   QRViewController? qrController; // Mobile QR controller
-
+  UniqueKey _webScannerKey = UniqueKey();
+  
   // New function to toggle camera preview mode
   void toggleCameraMode() {
+    if (isCameraMode) {
+      if (!kIsWeb) {
+        qrController?.pauseCamera();
+      }
+      // Else, WebQRScanner will be disposed when not shown.
+    } else {
+      if (kIsWeb) {
+        _webScannerKey = UniqueKey(); // Force reinitialization
+      }
+    }
     setState(() {
       isCameraMode = !isCameraMode;
     });
@@ -110,6 +128,7 @@ class _OverScoutingAppState extends State<OverScoutingApp> {
       dataHistory.add(_textController.text); // Update history with the new state
     });
     _textFocusNode.requestFocus();
+    playBeepSound(); // Play a beep sound on successful scan
   }
 
   /// Inicializa la aplicación: obtiene el directorio de documentos,
@@ -153,6 +172,7 @@ class _OverScoutingAppState extends State<OverScoutingApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Añade un listener para guardar automáticamente cada cambio en el historial
     _textController.addListener(() {
       // Solo agrega si es diferente del último estado para evitar duplicados
@@ -162,6 +182,29 @@ class _OverScoutingAppState extends State<OverScoutingApp> {
     });
     // Inicializamos el directorio de la app y cargamos datos existentes
     initApp();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    qrController?.dispose();
+    autosaveTimer?.cancel();
+    _textController.dispose();
+    // Dispose the added FocusNode
+    _textFocusNode.dispose();
+    super.dispose();
+  }
+
+  // New lifecycle method to pause/resume camera (mobile only)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!kIsWeb) {
+      if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+        qrController?.pauseCamera();
+      } else if (state == AppLifecycleState.resumed && isCameraMode) {
+        qrController?.resumeCamera();
+      }
+    }
   }
 
   /// Deshace la última acción restaurando el estado previo del área de texto.
@@ -349,104 +392,6 @@ class _OverScoutingAppState extends State<OverScoutingApp> {
     }
   }
 
-/// Guarda el contenido actual en un archivo Excel.
-/// Para cada tabulación se crea una columna. Se salta la primera fila y la primera columna,
-/// escribiendo los datos a partir de la celda B2 (índices [1,1]).
-Future<void> saveInExcel() async {
-  String content = _textController.text.trim();
-  if (content.isEmpty) {
-    // Muestra un diálogo de advertencia si no hay contenido
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text("Warning"),
-          content: Text("There is no content to save."),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text("OK"),
-            )
-          ],
-        );
-      },
-    );
-    return;
-  }
-
-  try {
-    // Crea un nuevo objeto Excel y usa la hoja por defecto "Sheet1"
-    var excel = ex.Excel.createExcel();
-    var sheet = excel['Sheet1'];
-
-    // Separa el contenido en líneas
-    List<String> lines = content.split('\n');
-
-    // Se recorre cada línea, pero se salta la primera (i = 0) para dejar la primera fila vacía
-    for (int i = 1; i < lines.length; i++) {
-      // Separa cada línea en columnas usando la tabulación.
-      // Se salta la primera columna (j = 0) para dejarla vacía.
-      List<String> rowData = lines[i].split('\t');
-      for (int j = 1; j < rowData.length; j++) {
-        // Escribe el dato en la celda con índices desplazados:
-        // la primera fila (índice 0) y la primera columna (índice 0) quedarán vacías.
-        sheet
-            .cell(ex.CellIndex.indexByColumnRow(columnIndex: j, rowIndex: i))
-            .value = rowData[j];
-      }
-    }
-
-    // Codifica el archivo Excel a bytes
-    final encodedBytes = excel.encode();
-    if (encodedBytes == null) {
-      throw "Error encoding Excel file.";
-    }
-    final fileBytes = Uint8List.fromList(encodedBytes);
-
-    // Guarda el archivo según la plataforma
-    if (kIsWeb) {
-      final blob = html.Blob(fileBytes,
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      html.AnchorElement(href: url)
-        ..setAttribute("download", "data.xlsx")
-        ..click();
-      html.Url.revokeObjectUrl(url);
-    } else {
-      // Permite al usuario seleccionar la ruta de guardado para el archivo Excel
-      String? selectedPath = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save Excel',
-        fileName: 'data.xlsx',
-        type: FileType.custom,
-        allowedExtensions: ['xlsx'],
-      );
-      if (selectedPath != null) {
-        File file = File(selectedPath);
-        await file.writeAsBytes(fileBytes, flush: true); // Asegura que se escriban todos los bytes
-        updateStatus("Excel file saved successfully.");
-      }
-    }
-  } catch (e) {
-    // En caso de error, muestra un diálogo y actualiza el mensaje de estado
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text("Error"),
-          content: Text("Failed to save Excel file: $e"),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text("OK"),
-            )
-          ],
-        );
-      },
-    );
-    updateStatus("Failed to save Excel file: $e");
-  }
-}
-
   // New method to prepare and send the prompt to ChatGPT.
   void _sendToChatGPT() {
     final originalText = _textController.text;
@@ -457,16 +402,6 @@ Future<void> saveInExcel() async {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("Prompt copiado y ChatGPT abierto."))
     );
-  }
-
-  @override
-  void dispose() {
-    qrController?.dispose();
-    autosaveTimer?.cancel();
-    _textController.dispose();
-    // Dispose the added FocusNode
-    _textFocusNode.dispose();
-    super.dispose();
   }
 
   @override
@@ -516,6 +451,7 @@ Future<void> saveInExcel() async {
                     color: Colors.black,
                     child: kIsWeb
                         ? WebQRScanner(
+                            key: _webScannerKey,  // Pass the new key here
                             onScan: (code) {
                               onQRCodeScanned(code);
                             },
@@ -580,10 +516,6 @@ Future<void> saveInExcel() async {
                   onPressed: saveCsvAndTxt,
                   child: Text("Save CSV"),
                 ),
-                ElevatedButton(
-                  onPressed: saveInExcel,
-                  child: Text("Save In Excel"),
-                ),
               ],
             ),
             SizedBox(height: 10),
@@ -619,11 +551,35 @@ class _WebQRScannerState extends State<WebQRScanner> {
   Timer? _scanTimer; // Timer for periodic scanning
   final html.CanvasElement _scanCanvas = html.CanvasElement(); // Offscreen canvas for scanning  
   String? _errorMessage; // New state variable for camera errors
+  // New: listen to page visibility changes
+  StreamSubscription<html.Event>? _visibilitySubscription;
 
   @override
   void initState() {
     super.initState();
     _initializeCamera();
+    // Listen for visibility changes in web
+    _visibilitySubscription = html.document.onVisibilityChange.listen((event) {
+      if (html.document.visibilityState == 'hidden') {
+        if (_videoElement != null && _videoElement!.srcObject != null) {
+          final stream = _videoElement!.srcObject as html.MediaStream;
+          stream.getTracks().forEach((track) => track.stop());
+          print("Camera stopped due to page hidden.");
+        }
+      } else if (html.document.visibilityState == 'visible') {
+        print("Page visible; reinitialize camera.");
+        _initializeCamera();
+      }
+    });
+  }
+
+  // New: override didUpdateWidget to reinitialize camera if missing
+  @override
+  void didUpdateWidget(covariant WebQRScanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_videoElement == null) {
+      _initializeCamera();
+    }
   }
 
   // Modified camera initialization with error handling
@@ -679,7 +635,7 @@ class _WebQRScannerState extends State<WebQRScanner> {
 
   // Modified _startScanning() with extra logs and faster scanning frequency.
   void _startScanning() {
-    _scanTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+    _scanTimer = Timer.periodic(Duration(seconds: 2), (timer) {
       if (_videoElement != null && _videoElement!.readyState == 4) {
         print("Video dimensions: ${_videoElement!.videoWidth} x ${_videoElement!.videoHeight}");
         _scanCanvas.width = _videoElement!.videoWidth;
@@ -704,6 +660,7 @@ class _WebQRScannerState extends State<WebQRScanner> {
           if (result != null && result['data'] != null) {
             print("QR Detected: ${result['data']}");
             widget.onScan(result['data']);
+            
             //timer.cancel(); // Stop scanning after detection.
           } else {
             print("No QR detected, continuing scanning.");
@@ -759,6 +716,13 @@ class _WebQRScannerState extends State<WebQRScanner> {
 
   @override
   void dispose() {
+    _visibilitySubscription?.cancel();
+    if (_videoElement != null && _videoElement!.srcObject != null) {
+      final stream = _videoElement!.srcObject as html.MediaStream;
+      stream.getTracks().forEach((track) {
+        track.stop();
+      });
+    }
     _scanTimer?.cancel();
     super.dispose();
   }

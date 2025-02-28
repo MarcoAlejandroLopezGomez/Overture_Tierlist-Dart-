@@ -42,6 +42,7 @@ dependencies:
   uuid: ^4.5.1
   qr_code_scanner: ^1.0.1
   mobile_scanner: ^6.0.6
+  audioplayers: ^6.2.0
 
 dev_dependencies:
   flutter_test:
