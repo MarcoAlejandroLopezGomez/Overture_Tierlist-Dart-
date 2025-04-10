@@ -1,0 +1,48 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\OvertureTierlist\Overture_Tierlist-Dart-\windows\flutter\ephemeral\.plugin_symlinks\audioplayers_windows\windows\audioplayers_windows_plugin.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\OvertureTierlist\Overture_Tierlist-Dart-\windows\flutter\ephemeral\.plugin_symlinks\audioplayers_windows\windows\audio_player.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\OvertureTierlist\Overture_Tierlist-Dart-\windows\flutter\ephemeral\.plugin_symlinks\audioplayers_windows\windows\MediaEngineExtension.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\OvertureTierlist\Overture_Tierlist-Dart-\windows\flutter\ephemeral\.plugin_symlinks\audioplayers_windows\windows\MediaEngineWrapper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="C:\OvertureTierlist\Overture_Tierlist-Dart-\windows\flutter\ephemeral\.plugin_symlinks\audioplayers_windows\windows\audio_player.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\OvertureTierlist\Overture_Tierlist-Dart-\windows\flutter\ephemeral\.plugin_symlinks\audioplayers_windows\windows\audioplayers_helpers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\OvertureTierlist\Overture_Tierlist-Dart-\windows\flutter\ephemeral\.plugin_symlinks\audioplayers_windows\windows\event_stream_handler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\OvertureTierlist\Overture_Tierlist-Dart-\windows\flutter\ephemeral\.plugin_symlinks\audioplayers_windows\windows\MediaEngineExtension.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\OvertureTierlist\Overture_Tierlist-Dart-\windows\flutter\ephemeral\.plugin_symlinks\audioplayers_windows\windows\MediaFoundationHelpers.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="C:\OvertureTierlist\Overture_Tierlist-Dart-\windows\flutter\ephemeral\.plugin_symlinks\audioplayers_windows\windows\MediaEngineWrapper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\OvertureTierlist\Overture_Tierlist-Dart-\windows\flutter\ephemeral\.plugin_symlinks\audioplayers_windows\windows\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{B04FD6A9-3B4E-3B0F-9F4B-74FE1589CA04}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{965C7212-037A-331B-B484-8AACDFE8FAC7}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

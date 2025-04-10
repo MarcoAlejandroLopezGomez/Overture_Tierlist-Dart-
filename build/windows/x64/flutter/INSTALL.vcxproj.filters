@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\OvertureTierlist\Overture_Tierlist-Dart-\build\windows\x64\CMakeFiles\cb17b4e0b186b908178192ba2fe75ca7\INSTALL_force.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{E26E64FA-8DBD-3ECF-BFEB-DABD3D6F67BB}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

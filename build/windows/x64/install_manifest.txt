@@ -1,0 +1,14 @@
+C:/OvertureTierlist/Overture_Tierlist-Dart-/build/windows/x64/runner/Debug/data/icudtl.dat
+C:/OvertureTierlist/Overture_Tierlist-Dart-/build/windows/x64/runner/Debug/flutter_windows.dll
+C:/OvertureTierlist/Overture_Tierlist-Dart-/build/windows/x64/runner/Debug/audioplayers_windows_plugin.dll
+C:/OvertureTierlist/Overture_Tierlist-Dart-/build/windows/x64/runner/Debug/data/flutter_assets/AssetManifest.bin
+C:/OvertureTierlist/Overture_Tierlist-Dart-/build/windows/x64/runner/Debug/data/flutter_assets/AssetManifest.bin.json
+C:/OvertureTierlist/Overture_Tierlist-Dart-/build/windows/x64/runner/Debug/data/flutter_assets/AssetManifest.json
+C:/OvertureTierlist/Overture_Tierlist-Dart-/build/windows/x64/runner/Debug/data/flutter_assets/FontManifest.json
+C:/OvertureTierlist/Overture_Tierlist-Dart-/build/windows/x64/runner/Debug/data/flutter_assets/fonts/MaterialIcons-Regular.otf
+C:/OvertureTierlist/Overture_Tierlist-Dart-/build/windows/x64/runner/Debug/data/flutter_assets/kernel_blob.bin
+C:/OvertureTierlist/Overture_Tierlist-Dart-/build/windows/x64/runner/Debug/data/flutter_assets/lib/assets/store-scanner-beep-90395.mp3
+C:/OvertureTierlist/Overture_Tierlist-Dart-/build/windows/x64/runner/Debug/data/flutter_assets/NOTICES
+C:/OvertureTierlist/Overture_Tierlist-Dart-/build/windows/x64/runner/Debug/data/flutter_assets/NOTICES.Z
+C:/OvertureTierlist/Overture_Tierlist-Dart-/build/windows/x64/runner/Debug/data/flutter_assets/packages/cupertino_icons/assets/CupertinoIcons.ttf
+C:/OvertureTierlist/Overture_Tierlist-Dart-/build/windows/x64/runner/Debug/data/flutter_assets/shaders/ink_sparkle.frag

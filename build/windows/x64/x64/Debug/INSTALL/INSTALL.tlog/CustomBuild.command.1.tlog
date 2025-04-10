@@ -1,0 +1,10 @@
+^C:\OVERTURETIERLIST\OVERTURE_TIERLIST-DART-\BUILD\WINDOWS\X64\CMAKEFILES\AC320D2167EA4C2DEC6113CBAEF69C57\INSTALL_FORCE.RULE
+setlocal
+cd .
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

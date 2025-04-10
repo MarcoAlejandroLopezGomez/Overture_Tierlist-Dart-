@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\OvertureTierlist\Overture_Tierlist-Dart-\build\windows\x64\_deps\nuget-subbuild\CMakeFiles\fe6c5175b0934f5699439baff9876f1a\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{89E38B3E-9C90-391B-95EE-9D7FD6FD66A7}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
