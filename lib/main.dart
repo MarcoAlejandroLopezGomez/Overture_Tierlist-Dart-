@@ -12,6 +12,15 @@ import 'package:flutter/services.dart'; // Add this import for LogicalKeyboardKe
 import 'package:uuid/uuid.dart';
 import 'qr_scanner.dart'; // Agregada la importación para Qr Scanner
 
+// New: Global cache service for images and customers
+class ImageCacheService {
+  static List<ImageData> cachedImages = [];
+  static List<Customer> cachedCustomers = [];
+}
+
+class TextCacheService {
+  static String cachedText = "";
+}
 
 class BoldIntent extends Intent {
   const BoldIntent();
@@ -45,6 +54,7 @@ class TierListPageState extends State<TierListPage> {
   bool crossOutMode = false;
   bool editMode = false;
   List<ImageData> images = [];
+  final TextEditingController _textController = TextEditingController();
   final List<Customer> customers = [
     Customer(name: '1st Pick', items: [], color: Colors.purple),
     Customer(name: '2nd Pick', items: [], color: Colors.yellow),
@@ -53,6 +63,27 @@ class TierListPageState extends State<TierListPage> {
     Customer(name: '-', items: [], color: Colors.red),
     Customer(name: 'Defense Pick', items: [], color: Colors.orange),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Restore cached text and images if available
+    _textController.text = TextCacheService.cachedText;
+    if (ImageCacheService.cachedImages.isNotEmpty) {
+      images = ImageCacheService.cachedImages;
+    }
+    if (ImageCacheService.cachedCustomers.isNotEmpty) {
+      for (var cust in customers) {
+        // Find matching customers without using firstWhere with null
+        final matchingCustomers = ImageCacheService.cachedCustomers.where((c) => c.name == cust.name);
+        if (matchingCustomers.isNotEmpty) {
+          final cachedCust = matchingCustomers.first;
+          cust.items.clear();
+          cust.items.addAll(cachedCust.items);
+        }
+      }
+    }
+  }
 
   void _viewImage(ImageData image) {
     Navigator.push(
@@ -100,7 +131,10 @@ class TierListPageState extends State<TierListPage> {
         actions: [
           TextButton(
             onPressed: () {
-              // Clean navigation to QR scanner page
+              // Save current text and cache images and customer data before navigation
+              TextCacheService.cachedText = _textController.text;
+              ImageCacheService.cachedImages = images;
+              ImageCacheService.cachedCustomers = customers;
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => OverScoutingApp()),
@@ -658,7 +692,7 @@ class _CustomerCartState extends State<CustomerCart> {
         color: widget.customer.color.withOpacity(0.3),
         border: Border.all(color: widget.customer.color, width: 2),
       ),
-      height: 150,
+      height: 150, // Adjust height as needed
       child: DragTarget<ImageData>(
         builder: (context, candidateData, rejectedData) {
           return Scrollbar(
@@ -696,7 +730,40 @@ class _CustomerCartState extends State<CustomerCart> {
             : Draggable<ImageData>(
                 data: imageData,
                 feedback: Material(
-                  // ...existing code...
+                  child: SizedBox(
+                    width: 100,
+                    height: 100,
+                    child: Stack(
+                      children: [
+                        Column(
+                          children: [
+                            if (imageData.title.isNotEmpty)
+                              Text(
+                                imageData.title,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            Expanded(
+                              child: Image.memory(
+                                imageData.bytes,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (imageData.crossedOut)
+                          const Center(
+                            child: Icon(
+                              Icons.clear,
+                              color: Colors.red,
+                              size: 100, // Make the cross bigger
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
                 childWhenDragging: Container(),
                 child: buildImage(imageData, context),

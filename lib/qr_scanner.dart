@@ -14,6 +14,7 @@ import 'dart:js' as js; // New import for calling jsQR
 import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/widgets.dart'; // Add import for widgets binding observer
+import 'excel_generator.dart'; // Agrega esta línea para navegar a Ranking Table
 
 /// Función principal que arranca la aplicación.
 void main() {
@@ -197,6 +198,8 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Restore cached text from previous page
+    _textController.text = TextCacheService.cachedText;
     // Añade un listener para guardar automáticamente cada cambio en el historial
     _textController.addListener(() {
       // Solo agrega si es diferente del último estado para evitar duplicados
@@ -211,6 +214,9 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
   @override
   void dispose() {
     print("OverScoutingApp dispose called");
+    
+    // Before disposing, update the cache with current text
+    TextCacheService.cachedText = _textController.text;
     
     // Cancel all operations that might call setState()
     WidgetsBinding.instance.removeObserver(this);
@@ -531,9 +537,23 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
             onPressed: _sendToChatGPT,
             tooltip: "Enviar a ChatGPT",
           ),
+          // New: Ranking table button
           TextButton(
             onPressed: () {
-              // Ensure camera is fully stopped before navigation
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ExcelGeneratorPage()),
+              );
+            },
+            child: const Text(
+              "Make Ranking Table",
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              // Save current text to cache before navigating to TierListPage
+              TextCacheService.cachedText = _textController.text;
               _ensureCameraResourcesFreed();
               Navigator.pushReplacement(
                 context,
@@ -1142,14 +1162,14 @@ class _WebQRScannerState extends State<WebQRScanner> {
       );
     }
     
-  return _videoElement != null
+    return _videoElement != null
         ? Container(
             width: double.infinity,
             height: widget.containerHeight, // Use the container height
             child: Stack(
               fit: StackFit.expand, // Make stack fill the container
               children: [
-                // Camera view container with specific styling
+                // Camera view container
                 Container(
                   width: double.infinity,
                   height: widget.containerHeight,
@@ -1180,7 +1200,7 @@ class _WebQRScannerState extends State<WebQRScanner> {
                 ),
               ],
             ),
-          ) 
+          )
         : Center( // Loading indicator when video element is null
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
