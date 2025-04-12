@@ -4,7 +4,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
-//import 'package:excel/excel.dart' as ex; // Paquete para generar archivos Excel
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:html' as html; // Only used on web
 import 'package:qr_code_scanner/qr_code_scanner.dart';  // Import for QR code scanning
@@ -491,7 +490,7 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
   void _sendToChatGPT() {
     final originalText = _textController.text;
     final processedText = originalText.replaceAll('\t', ',');
-    final prompt = "Elige, basado en estos datos, al mejor equipo para mi estrategia [pon tu estrategia] de la competencia First Robotics Competition. Format:(ScouterInitials/MatchNumber/RobotTeamNumber/StartingPosition/NoShow/CagePosition/Moved?/CoralL1Autonomous/ScoredCoralL2Autonomous/CoralL3Autonomous/CoralL4Autonomous/BargeAlgaeScoredAutonomous/ProcessorAlgaeAutonomous/DislodgedAlgae?Autonomous/AutoFoul/DislodgedAlgae?TeleOp/PickupLocation/CoralL1TeleOp/CoralL2TeleOp/CoralL3TeleOp/CoralL4TeleOp/BargeAlgaeTeleOp/ProcessorAlgaeTeleOp/CrossedField?/PlayedDefense?/TippedOrFellOver?/TouchedOpposingCage?/Died?/EndPosition/Defended?)\nDatos: " + processedText;
+    final prompt = "Elige, basado en estos datos, al mejor equipo para mi estrategia [pon tu estrategia] de la competencia First Robotics Competition. Format:(Scouter Initials, Match Number,Robot,Future Alliance in Qualy?,Team Number,Starting Position,No Show,Moved?,Auto Coral L1 Scored,Auto Coral L2 Scored,Auto Coral L3 Scored,Auto Coral L4 Scored,Auto Barge Algae Scored,Auto Processor Algae Scored,Dislodged Algae?,Auto Foul,Dislodged Algae?,Pickup Location,Coral L1 Scored,Coral L2 Scored,Coral L3 Scored,Coral L4 Scored,Barge Algae Scored,Processor Algae Scored,Crossed Feild/Played Defense,Tipped/Fell Over?,Touched Opposing Cage?,Died?,End Position,BROKE?,Defended?,CoralHPMistake,Yellow/Red Card)\nDatos: " + processedText;
     Clipboard.setData(ClipboardData(text: prompt));
     html.window.open("https://chat.openai.com/", "_blank");
     ScaffoldMessenger.of(context).showSnackBar(
@@ -537,12 +536,17 @@ class _OverScoutingAppState extends State<OverScoutingApp> with WidgetsBindingOb
             onPressed: _sendToChatGPT,
             tooltip: "Enviar a ChatGPT",
           ),
-          // New: Ranking table button
+          // New: Ranking table button - Modified to pass data
           TextButton(
             onPressed: () {
+              // Pass the current text controller content to the ExcelGeneratorPage
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const ExcelGeneratorPage()),
+                MaterialPageRoute(
+                  builder: (context) => ExcelGeneratorPage(
+                    initialData: _textController.text, // Pass the data here
+                  ),
+                ),
               );
             },
             child: const Text(
