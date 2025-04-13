@@ -3,12 +3,16 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
+// Correct import for PhotoViewGallery
+import 'package:photo_view/photo_view_gallery.dart';
+// Import for base PhotoView if needed elsewhere, but Gallery is key here
 import 'package:photo_view/photo_view.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'; // Import foundation for listEquals and kIsWeb
 import 'dart:html' as html; // Add this import for web
 import 'package:flutter/services.dart'; // Add this import for LogicalKeyboardKey
 import 'package:uuid/uuid.dart';
+import 'package:path/path.dart' as p; // Import the path package
 import 'qr_scanner.dart'; // Agregada la importación para Qr Scanner
 
 // New: Global cache service for images and customers
@@ -24,6 +28,22 @@ class TextCacheService {
 class BoldIntent extends Intent {
   const BoldIntent();
 }
+
+// New: Class to hold results from PhotoViewPage
+class PhotoViewResult {
+  final String? deletedSubImageId;
+  // MODIFIED: Use a boolean flag instead of the list
+  final bool imagesAdded;
+
+  PhotoViewResult({this.deletedSubImageId, this.imagesAdded = false});
+
+  @override
+  String toString() {
+    // MODIFIED: Update toString
+    return 'PhotoViewResult(deletedSubImageId: $deletedSubImageId, imagesAdded: $imagesAdded)';
+  }
+}
+
 
 void main() {
   runApp(const MyApp());
@@ -51,7 +71,7 @@ class TierListPage extends StatefulWidget {
 
 class TierListPageState extends State<TierListPage> {
   bool crossOutMode = false;
-  bool editMode = false;
+  // REMOVED: bool editMode = false;
   List<ImageData> images = [];
   final TextEditingController _textController = TextEditingController();
   final List<Customer> customers = [
@@ -82,43 +102,173 @@ class TierListPageState extends State<TierListPage> {
         }
       }
     }
+     // Ensure all imageList are initialized
+    for (var img in images) {
+      img.imageList ??= [img];
+    }
+    for (var cust in customers) {
+      for (var img in cust.items) {
+        img.imageList ??= [img];
+      }
+    }
   }
 
-  void _viewImage(ImageData image) {
-    Navigator.push(
+  // --- MODIFIED: Use async/await and handle PhotoViewResult ---
+  void _viewImage(ImageData image) async {
+    // Ensure the list is initialized before navigating
+    image.imageList ??= [image];
+
+    print("Preparing to navigate to PhotoViewPage for image ID: ${image.id}");
+
+    // Pass the actual list reference from the image data
+    final List<ImageData> listToSend = image.imageList!;
+
+    final result = await Navigator.push<PhotoViewResult?>( // Expect PhotoViewResult
       context,
       MaterialPageRoute(
         builder: (context) => PhotoViewPage(
           image: image,
-          imageList: image.imageList,
+          imageList: listToSend,
         ),
       ),
     );
+
+    print("Returned from PhotoViewPage. Result: $result");
+    if (result != null && mounted) {
+      if (result.deletedSubImageId != null) {
+        // Handle deletion
+        _handleSubImageDeletionById(image, result.deletedSubImageId!);
+      // MODIFIED: Check imagesAdded flag
+      } else if (result.imagesAdded) {
+         // Just refresh state, PhotoViewPage modified the list directly
+        setState(() {
+           print("Refreshing TierListPage state after PhotoViewPage reported image additions.");
+           // Optional: Verify list length change here if needed for debugging
+           // print("Main image ${image.id} list length is now: ${image.imageList?.length}");
+        });
+      } else {
+        // Refresh state even if nothing changed explicitly (e.g., internal state change)
+        setState(() {
+           print("Refreshing TierListPage state after PhotoViewPage closed (no explicit add/delete returned).");
+        });
+      }
+    } else if (mounted) {
+      // Refresh state if result was null (e.g., system back button without changes)
+      setState(() {
+         print("Refreshing TierListPage state after PhotoViewPage closed (null result).");
+      });
+    }
   }
 
+  // REMOVED: _handleSubImageAddition method
+
+
+  // --- REFINED: Handler using ID, more robust search ---
+  void _handleSubImageDeletionById(ImageData mainImage, String deletedSubImageId) {
+    print("_handleSubImageDeletionById CALLED with main: ${mainImage.id}, deleted ID: $deletedSubImageId");
+    if (!mounted) {
+      print("_handleSubImageDeletionById: Exiting because widget is not mounted.");
+      return;
+    }
+
+    bool foundAndRemoved = false;
+    bool triedToRemove = false; // Track if we found the sub-image
+    String? listSource; // Track where the image was found
+
+    // Function to perform the removal and update state
+    void performRemoval(List<ImageData> sourceList, int mainIndex, String sourceName) {
+        // Access the actual image data object from the state list
+        ImageData targetMainImage = sourceList[mainIndex];
+        targetMainImage.imageList ??= [targetMainImage]; // Ensure list exists
+
+        List<ImageData> targetImageList = targetMainImage.imageList!;
+
+        int subImageIndex = targetImageList.indexWhere((sub) => sub.id == deletedSubImageId);
+
+        if (subImageIndex != -1) {
+            triedToRemove = true; // We found the sub-image
+            print("Found sub-image by ID in '$sourceName[${mainIndex}].imageList' at index $subImageIndex.");
+            if (targetImageList.length > 1) {
+                print("Attempting removal from '$sourceName' list...");
+                setState(() {
+                    targetImageList.removeAt(subImageIndex);
+                    print("Removed sub-image. New list length: ${targetImageList.length}");
+                    foundAndRemoved = true;
+                    listSource = sourceName;
+                });
+            } else {
+                print("Cannot delete last sub-image from '$sourceName' list.");
+                if (mounted) {
+                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Cannot delete the only remaining image.")));
+                }
+                // Mark as found but not removed to prevent further searching
+                listSource = '$sourceName (last image)';
+            }
+        } else {
+            print("Sub-image ID ${deletedSubImageId} NOT found in '$sourceName[${mainIndex}].imageList'.");
+        }
+    }
+
+    // Check Unassigned Images
+    int mainImageIndexUnassigned = images.indexWhere((img) => img.id == mainImage.id);
+    if (mainImageIndexUnassigned != -1) {
+        performRemoval(images, mainImageIndexUnassigned, 'images');
+    }
+
+    // Check Customer Lists (only if not found/processed yet)
+    if (listSource == null) { // listSource is set if found (even if not removed)
+        for (var customer in customers) {
+            int mainImageIndexCustomer = customer.items.indexWhere((img) => img.id == mainImage.id);
+            if (mainImageIndexCustomer != -1) {
+                performRemoval(customer.items, mainImageIndexCustomer, 'customer ${customer.name}');
+                if (listSource != null) break; // Exit loop if found/processed
+            }
+        }
+    }
+
+    // Final Status
+    if (listSource != null) {
+       print("Sub-image deletion process completed. Source: $listSource. Removed: $foundAndRemoved");
+    } else if (mounted) {
+       print("Warning: Main image ${mainImage.id} not found in any list for sub-image deletion.");
+       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Could not find the main image to modify.")));
+    } else if (!triedToRemove && mounted) {
+        // This case should ideally not happen if the main image was found, but indicates the sub-image ID wasn't in the list
+        print("Warning: Sub-image with ID $deletedSubImageId was NOT found in the expected list(s).");
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Could not find the sub-image to delete.")));
+    }
+  }
+
+
   void _editImageText(ImageData image) {
-    setState(() {
-      editMode = true;
-    });
+    // Ensure imageList is initialized before editing
+    image.imageList ??= [image];
+    // REMOVED: setState(() { editMode = true; });
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => TextEditorPage(image: image),
       ),
     ).then((_) {
+      // Refresh state after editing text/title/skills
       setState(() {
-        editMode = false;
+         // REMOVED: editMode = false;
+         print("Returned from TextEditorPage, refreshing state.");
       });
     });
   }
 
   void _deleteImage(ImageData image) {
     setState(() {
+      // Remove from customer lists
       for (var customer in customers) {
-        customer.items.remove(image);
+        customer.items.removeWhere((item) => item.id == image.id);
+        // Also check sub-image lists within this customer if necessary, though less likely
       }
-      images.remove(image);
+      // Remove from unassigned list
+      images.removeWhere((item) => item.id == image.id);
     });
+     print("Deleted main image ${image.id}");
   }
 
   @override
@@ -161,6 +311,7 @@ class TierListPageState extends State<TierListPage> {
 // Modified buildPickRows for uniform customer header size and alignment:
 Widget buildPickRows() {
   return Container(
+    // Consider using LayoutBuilder or Flexible/Expanded for better height management
     height: MediaQuery.of(context).size.height * 0.6, // Fixed overall row height
     child: Column(
       children: customers.map((customer) {
@@ -169,40 +320,56 @@ Widget buildPickRows() {
             children: [
               Container(
                 width: 120,               // Fixed width so names align
-                height: 50,               // Fixed height for uniformity
+                // Consider removing fixed height or making it smaller if rows overflow
+                // height: 50,
                 alignment: Alignment.center,
                 color: customer.color,
+                padding: const EdgeInsets.symmetric(horizontal: 4.0), // Add padding
                 child: Text(
                   customer.name,
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
+                  textAlign: TextAlign.center, // Center text
+                  overflow: TextOverflow.ellipsis, // Handle long names
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: CustomerCart(
                   customer: customer,
-                  highlighted: false,
+                  highlighted: false, // This seems unused, consider removing
                   crossOutMode: crossOutMode,
-                  editMode: editMode,
-                  onImageDropped: (item) {
-                    if (!crossOutMode && !editMode) {
+                  // MODIFIED: Change callback to onImageDroppedAt
+                  onImageDroppedAt: (item, index) {
+                    if (!crossOutMode) { // Check only crossOutMode
                       setState(() {
-                        // Remove the image from its current location and add to new customer
-                        for (var c in customers) {
-                          c.items.remove(item);
+                        // Remove the image from its current location
+                        bool removed = images.remove(item);
+                        if (!removed) {
+                          for (var c in customers) {
+                            if (c.items.remove(item)) {
+                               removed = true;
+                               break;
+                            }
+                          }
                         }
-                        if (images.contains(item)) {
-                          images.remove(item);
+                        // Add to new customer at the specified index if removed
+                        if (removed) {
+                           // Clamp index to be safe
+                           final insertIndex = index.clamp(0, customer.items.length);
+                           print("Inserting item ${item.id} into ${customer.name} at index $insertIndex (original index: $index)");
+                           customer.items.insert(insertIndex, item);
+                        } else {
+                           print("Warning: Dropped item ${item.id} not found in any list.");
                         }
-                        customer.items.add(item);
                       });
                     }
                   },
                   onEditImageText: _editImageText,
-                  onDeleteImage: _deleteImage,
+                  onDeleteImage: _deleteImage, // Pass the main delete function
+                  onViewImage: _viewImage,
                 ),
               ),
             ],
@@ -213,68 +380,102 @@ Widget buildPickRows() {
   );
 }
 
-  Widget buildImage(ImageData imageData, {bool isInRow = false}) {
+   Widget buildImage(ImageData imageData, {bool isInRow = false}) {
+    // Ensure imageList is initialized
+    imageData.imageList ??= [imageData];
+
     return GestureDetector(
       onTap: () {
-        setState(() {
-          if (crossOutMode) {
+        if (crossOutMode) {
+          setState(() {
             imageData.crossedOut = !imageData.crossedOut;
-          } else {
-            _viewImage(imageData);
-          }
-        });
+          });
+        // REMOVED: } else if (!editMode) { // Only allow viewing if not in edit mode
+        } else { // Allow viewing if not in crossOutMode
+          _viewImage(imageData);
+        }
       },
       child: SizedBox(
         width: 100,
         height: 100,
         child: Stack(
+          fit: StackFit.expand, // Make stack fill SizedBox
           children: [
-            Column(
-              children: [
-                if (imageData.title.isNotEmpty)
-                  Text(
+            // Background Image
+            Image.memory(
+              imageData.bytes,
+              fit: BoxFit.cover,
+              // Add semantic label for accessibility
+              semanticLabel: imageData.title.isNotEmpty ? imageData.title : 'Tier list image',
+            ),
+            // Title Overlay (optional, consider if it obscures image too much)
+            if (imageData.title.isNotEmpty)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  color: Colors.black.withOpacity(0.5),
+                  padding: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 1.0),
+                  child: Text(
                     imageData.title,
                     style: const TextStyle(
                       color: Colors.white,
+                      fontSize: 10, // Smaller font size for title overlay
                       fontWeight: FontWeight.bold,
                     ),
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                Expanded(
-                  child: Image.memory(
-                    imageData.bytes,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ],
-            ),
-            if (imageData.crossedOut)
-              const Center(
-                child: Icon(
-                  Icons.clear,
-                  color: Colors.red,
-                  size: 100, // Make the cross bigger
                 ),
               ),
+            // Cross-out Overlay
+            if (imageData.crossedOut)
+              Container(
+                 color: Colors.black.withOpacity(0.4), // Dim background slightly
+                 child: const Center(
+                   child: Icon(
+                     Icons.clear,
+                     color: Colors.red,
+                     size: 80, // Adjust size
+                   ),
+                 ),
+              ),
+            // Edit Button
             Positioned(
               bottom: 0,
               right: 0,
-              child: IconButton(
-                icon: const Icon(Icons.edit, color: Colors.white),
-                onPressed: () {
-                  _editImageText(imageData);
-                },
+              child: Container( // Add background for better visibility
+                 color: Colors.black.withOpacity(0.5),
+                 child: IconButton(
+                   icon: const Icon(Icons.edit, color: Colors.white, size: 20),
+                   tooltip: "Edit Text/Skills",
+                   onPressed: () {
+                     _editImageText(imageData);
+                   },
+                   padding: EdgeInsets.zero, // Reduce padding
+                   constraints: const BoxConstraints(), // Reduce constraints
+                 ),
               ),
             ),
-            Positioned(
-              top: 4,
-              right: 4,
-              child: IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                onPressed: () {
-                  _deleteImage(imageData);
-                },
+            // Delete Button (for main image list only, handled differently in CustomerCart)
+            if (!isInRow) // Only show delete on main list images
+              Positioned(
+                top: 0,
+                right: 0,
+                child: Container( // Add background for better visibility
+                   color: Colors.black.withOpacity(0.5),
+                   child: IconButton(
+                     icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                     tooltip: "Delete Image",
+                     onPressed: () {
+                       _deleteImage(imageData); // Call main delete function
+                     },
+                     padding: EdgeInsets.zero, // Reduce padding
+                     constraints: const BoxConstraints(), // Reduce constraints
+                   ),
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -282,96 +483,103 @@ Widget buildPickRows() {
   }
 
   Widget buildDraggableImage(ImageData imageData, {bool isInRow = false}) {
-    return (crossOutMode || editMode)
-        ? buildImage(imageData, isInRow: isInRow)
-        : Draggable<ImageData>(
-            data: imageData,
-            feedback: Material(
-              child: SizedBox(
-                width: 100,
-                height: 100,
-                child: Stack(
-                  children: [
-                    Column(
-                      children: [
-                        if (imageData.title.isNotEmpty)
-                          Text(
-                            imageData.title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        Expanded(
-                          child: Image.memory(
-                            imageData.bytes,
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (imageData.crossedOut)
-                      const Center(
-                        child: Icon(
-                          Icons.clear,
-                          color: Colors.red,
-                          size: 100, // Make the cross bigger
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+    // Ensure imageList is initialized
+    imageData.imageList ??= [imageData];
+
+    Widget imageWidget = buildImage(imageData, isInRow: isInRow);
+
+    // Only allow dragging if not in crossOut mode
+    // REMOVED: if (crossOutMode || editMode) {
+    if (crossOutMode) {
+      return imageWidget;
+    } else {
+      return Draggable<ImageData>(
+        data: imageData,
+        feedback: Material( // Wrap feedback in Material for text style consistency
+          color: Colors.transparent, // Make Material transparent
+          child: SizedBox(
+            width: 100,
+            height: 100,
+            child: Opacity( // Make feedback slightly transparent
+               opacity: 0.7,
+               child: buildImage(imageData, isInRow: isInRow), // Reuse buildImage for feedback
             ),
-            childWhenDragging: Container(), // Display an empty container when dragging
-            child: buildImage(imageData, isInRow: isInRow),
-            onDraggableCanceled: (velocity, offset) {
-              if (crossOutMode || editMode) {
-                return;
-              }
-            },
-            ignoringFeedbackSemantics: crossOutMode || editMode,
-          );
+          ),
+        ),
+        childWhenDragging: SizedBox( // Show a placeholder when dragging
+           width: 100,
+           height: 100,
+           child: Container(
+              color: Colors.grey.withOpacity(0.3),
+              margin: const EdgeInsets.all(4), // Match margin if buildImage has it
+           ),
+        ),
+        child: imageWidget, // The actual widget displayed
+      );
+    }
   }
 
   Widget buildImageButtons() {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly, // Better spacing
       children: [
         IconButton(
-          icon: const Icon(Icons.add_photo_alternate, size: 50),
+          icon: const Icon(Icons.add_photo_alternate),
+          iconSize: 40, // Slightly smaller icons
+          tooltip: "Add Images",
           onPressed: pickImages,
         ),
         IconButton(
-          icon: Icon(Icons.clear, size: 50, color: crossOutMode ? Colors.red : Colors.white),
+          icon: Icon(Icons.clear, color: crossOutMode ? Colors.red : Colors.white),
+          iconSize: 40,
+          tooltip: crossOutMode ? "Disable Cross-out Mode" : "Enable Cross-out Mode",
           onPressed: () {
             setState(() {
               crossOutMode = !crossOutMode;
+              // REMOVED: if (crossOutMode) editMode = false; // Turn off edit mode if cross-out is enabled
             });
           },
         ),
+         // REMOVED: IconButton for Edit Mode Toggle
         IconButton(
-          icon: const Icon(Icons.save, size: 50),
+          icon: const Icon(Icons.save),
+          iconSize: 40,
+          tooltip: "Save Tier List",
           onPressed: saveTierList,
         ),
         IconButton(
-          icon: const Icon(Icons.upload_file, size: 50),
-          onPressed: uploadTierList, // Ensure this method is correctly referenced
+          icon: const Icon(Icons.upload_file),
+          iconSize: 40,
+          tooltip: "Load Tier List",
+          onPressed: uploadTierList,
         ),
       ],
     );
   }
 
   Widget buildImageContainer() {
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 4,
-        mainAxisSpacing: 4,
-      ),
-      itemCount: images.length,
-      itemBuilder: (context, index) {
-        return buildDraggableImage(images[index]);
-      },
+    // Use LayoutBuilder to determine crossAxisCount dynamically or ensure enough space
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate crossAxisCount based on width, ensuring minimum size
+        int crossAxisCount = (constraints.maxWidth / 110).floor(); // Approx 100 width + spacing
+        if (crossAxisCount < 1) crossAxisCount = 1; // Ensure at least 1 column
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(8.0), // Add padding around the grid
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: 8, // Increased spacing
+            mainAxisSpacing: 8,  // Increased spacing
+            childAspectRatio: 1.0, // Ensure items are square
+          ),
+          itemCount: images.length,
+          itemBuilder: (context, index) {
+            // Pass isInRow: false for images in the main container
+            return buildDraggableImage(images[index], isInRow: false);
+          },
+        );
+      }
     );
   }
 
@@ -379,157 +587,239 @@ Widget buildPickRows() {
     final pickedFiles = await FilePicker.platform.pickFiles(
       type: FileType.image,
       allowMultiple: true,
+      withData: true,
+      withReadStream: false,
     );
 
-    if (pickedFiles != null) {
+    if (pickedFiles != null && pickedFiles.files.isNotEmpty) {
       setState(() {
         for (final file in pickedFiles.files) {
-          final bytes = file.bytes ?? Uint8List(0);
-          final uniqueId = Uuid().v4(); // Generate unique ID
+          if (file.bytes == null) {
+            print("Warning: Could not read bytes for file ${file.name}");
+            continue;
+          }
+          final bytes = file.bytes!;
+          final uniqueId = const Uuid().v4();
+          String imageTitle = file.name.split('.').first; // Default title
+
+          if (!kIsWeb && file.path != null && file.path!.isNotEmpty) {
+            try {
+              String directoryPath = p.dirname(file.path!);
+              imageTitle = p.basename(directoryPath);
+            } catch (e) {
+              print("Error extracting folder name from path '${file.path}': $e");
+            }
+          }
+
           final imageData = ImageData(
             uniqueId,
             file.name,
             bytes: bytes,
             crossedOut: false,
             isBase64: false,
+            title: imageTitle,
+            imageList: [], // Initialize with empty list
           );
-          imageData.imageList.add(imageData); // Initialize imageList with the main image
+          imageData.imageList = [imageData]; // Add self to the list
           images.add(imageData);
         }
       });
+    } else {
+      print("No images selected.");
     }
   }
 
-Future<void> saveTierList() async {
-  final buffer = StringBuffer();
+  Future<void> saveTierList() async {
+    final buffer = StringBuffer();
 
-  for (final customer in customers) {
-    buffer.writeln('Tier: ${customer.name}');
-    for (final item in customer.items) {
-      buffer.writeln('  Image: ${base64Encode(item.bytes)}');
-      buffer.writeln('    Title: ${item.title}');
-      buffer.writeln('    Text: ${jsonEncode(item.text)}'); // Save raw text
-      buffer.writeln('    DriverSkills: ${item.driverSkills}'); // Add this
-      buffer.writeln('    ImageList:');
-      for (final subItem in item.imageList) {
-        buffer.writeln('      SubImage: ${base64Encode(subItem.bytes)}');
-        buffer.writeln('        Title: ${subItem.title}');
-        buffer.writeln('        Text: ${jsonEncode(subItem.text)}'); // Save raw text
-        buffer.writeln('        DriverSkills: ${subItem.driverSkills}'); // Add this
+    // Save Tiers
+    for (final customer in customers) {
+      buffer.writeln('Tier: ${customer.name}');
+      for (final item in customer.items) {
+        item.imageList ??= [item]; // Ensure list exists
+        String base64Image;
+        try { base64Image = base64Encode(item.bytes); } catch (e) { base64Image = ""; print("Error encoding image ${item.id}: $e"); }
+        buffer.writeln('  Image: $base64Image');
+        buffer.writeln('    Title: ${item.title}');
+        buffer.writeln('    Text: ${jsonEncode(item.text)}');
+        buffer.writeln('    DriverSkills: ${item.driverSkills}');
+        buffer.writeln('    ImageList:');
+        for (final subItem in item.imageList ?? []) { // Iterate over empty list if null
+           String base64SubImage;
+           try { base64SubImage = base64Encode(subItem.bytes); } catch (e) { base64SubImage = ""; print("Error encoding sub-image ${subItem.id}: $e"); }
+           buffer.writeln('      SubImage: $base64SubImage');
+           buffer.writeln('        Title: ${subItem.title}');
+           buffer.writeln('        Text: ${jsonEncode(subItem.text)}');
+           buffer.writeln('        DriverSkills: ${subItem.driverSkills}');
+        }
       }
+      buffer.writeln();
+    }
+
+    // Save Unassigned Images
+    buffer.writeln('Tier: Unassigned');
+    for (final item in images) {
+       item.imageList ??= [item]; // Ensure list exists
+       String base64Image;
+       try { base64Image = base64Encode(item.bytes); } catch (e) { base64Image = ""; print("Error encoding unassigned image ${item.id}: $e"); }
+       buffer.writeln('  Image: $base64Image');
+       buffer.writeln('    Title: ${item.title}');
+        buffer.writeln('    Text: ${jsonEncode(item.text)}');
+        buffer.writeln('    DriverSkills: ${item.driverSkills}');
+        buffer.writeln('    ImageList:');
+       for (final subItem in item.imageList ?? []) { // Iterate over empty list if null
+          String base64SubImage;
+          try { base64SubImage = base64Encode(subItem.bytes); } catch (e) { base64SubImage = ""; print("Error encoding unassigned sub-image ${subItem.id}: $e"); }
+          buffer.writeln('      SubImage: $base64SubImage');
+          buffer.writeln('        Title: ${subItem.title}');
+          buffer.writeln('        Text: ${jsonEncode(subItem.text)}');
+          buffer.writeln('        DriverSkills: ${subItem.driverSkills}');
+       }
     }
     buffer.writeln();
-  }
 
-  if (kIsWeb) {
-    // Web-specific code to save the file
-    final bytes = utf8.encode(buffer.toString());
-    final blob = html.Blob([bytes]);
-    final url = html.Url.createObjectUrlFromBlob(blob);
-    html.AnchorElement(href: url)
-      ..setAttribute("download", "tier_list.txt")
-      ..click();
-    html.Url.revokeObjectUrl(url);
-  } else {
-    // Mobile/Desktop-specific code to save the file
-    final directory = await getApplicationDocumentsDirectory();
-    final path = await FilePicker.platform.saveFile(
-      dialogTitle: 'Please select an output file:',
-      fileName: 'tier_list.txt',
-      initialDirectory: directory.path,
-    );
-
-    if (path != null) {
-      final file = File(path);
-      await file.writeAsString(buffer.toString());
+    // File Saving Logic (Web and Desktop/Mobile)
+    if (kIsWeb) {
+      try {
+        final bytes = utf8.encode(buffer.toString());
+        final blob = html.Blob([bytes], 'text/plain;charset=utf-8');
+        final url = html.Url.createObjectUrlFromBlob(blob);
+        final anchor = html.AnchorElement(href: url)
+          ..setAttribute("download", "tier_list.txt")
+          ..click();
+        html.Url.revokeObjectUrl(url);
+        print("Tier list saved (web download initiated).");
+      } catch (e) { print("Error saving tier list on web: $e"); }
+    } else {
+      try {
+        final directory = await getApplicationDocumentsDirectory();
+        final String? path = await FilePicker.platform.saveFile(
+          dialogTitle: 'Save Tier List As:',
+          fileName: 'tier_list.txt',
+          initialDirectory: directory.path,
+          lockParentWindow: true,
+        );
+        if (path != null) {
+          final file = File(path);
+          await file.writeAsString(buffer.toString());
+          print("Tier list saved to: $path");
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Tier list saved to $path')));
+        } else { print("Tier list save cancelled by user."); }
+      } catch (e) {
+        print("Error saving tier list on desktop/mobile: $e");
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error saving tier list: $e')));
+      }
     }
   }
-}
 
-Future<void> uploadTierList() async {
-  final result = await FilePicker.platform.pickFiles(
-    type: FileType.custom,
-    allowedExtensions: ['txt'],
-  );
-
-  if (result != null && result.files.isNotEmpty) {
-    final file = result.files.first;
-    final content = utf8.decode(file.bytes!);
-    parseTierList(content);
-  }
-}
-
-void parseTierList(String content) {
-  final lines = content.split('\n');
-  Customer? currentCustomer;
-  ImageData? currentImage;
-  images.clear();
-  customers.forEach((customer) => customer.items.clear());
-
-  for (int i = 0; i < lines.length; i++) {
-    final line = lines[i];
-    if (line.startsWith('Tier: ')) {
-      final tierName = line.substring(6);
-      currentCustomer = customers.firstWhere(
-        (c) => c.name == tierName,
-        orElse: () => Customer(name: tierName, items: [], color: Colors.grey),
+  Future<void> uploadTierList() async {
+    FilePickerResult? result;
+    try {
+       result = await FilePicker.platform.pickFiles(
+        type: FileType.custom, allowedExtensions: ['txt'], withData: true,
       );
-    } else if (line.trimLeft().startsWith('Image: ') && currentCustomer != null) {
-      final imageBase64 = line.trimLeft().substring(7).trim();
-      final imageBytes = base64Decode(imageBase64);
-      final titleLine = lines[i + 1];
-      final textLine = lines[i + 2];
-      final driverSkillsLine = lines[i + 3]; // Add this
-      final title = titleLine.trimLeft().startsWith('Title: ') ? titleLine.trimLeft().substring(6) : '';
-      final text = textLine.trimLeft().startsWith('Text: ') ? jsonDecode(textLine.trimLeft().substring(5)) as String : '';
-      final parsedSkills = driverSkillsLine.trimLeft().startsWith('DriverSkills: ')
-          ? double.tryParse(driverSkillsLine.trimLeft().substring(14)) ?? 0.0
-          : 0.0;
+    } catch (e) { print("Error picking file: $e"); if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error picking file: $e'))); return; }
 
-      final imageData = ImageData(
-        DateTime.now().millisecondsSinceEpoch.toString(),
-        '',
-        bytes: imageBytes,
-        crossedOut: false,
-        isBase64: true,
-        title: title,
-        text: text,
-      )..driverSkills = parsedSkills; // Add this
-
-      currentCustomer.items.add(imageData);
-      currentImage = imageData;
-      i += 3; // Skip the next three lines as they have been processed
-    } else if (line.trimLeft().startsWith('SubImage: ') && currentImage != null) {
-      final subImageBase64 = line.trimLeft().substring(9).trim();
-      final subImageBytes = base64Decode(subImageBase64);
-      final subTitleLine = lines[i + 1];
-      final subTextLine = lines[i + 2];
-      final subDriverSkillsLine = lines[i + 3]; // Add this
-      final subTitle = subTitleLine.trimLeft().startsWith('Title: ') ? subTitleLine.trimLeft().substring(6) : '';
-      final subText = subTextLine.trimLeft().startsWith('Text: ') ? jsonDecode(subTextLine.trimLeft().substring(5)) as String : '';
-      final subParsedSkills = subDriverSkillsLine.trimLeft().startsWith('DriverSkills: ')
-          ? double.tryParse(subDriverSkillsLine.trimLeft().substring(14)) ?? 0.0
-          : 0.0;
-
-      final subImageData = ImageData(
-        DateTime.now().millisecondsSinceEpoch.toString(),
-        '',
-        bytes: subImageBytes,
-        crossedOut: false,
-        isBase64: true,
-        title: subTitle,
-        text: subText,
-      )..driverSkills = subParsedSkills; // Add this
-
-      currentImage.imageList.add(subImageData);
-      i += 3; // Skip the next three lines as they have been processed
-    }
+    if (result != null && result.files.isNotEmpty) {
+      final file = result.files.first;
+      if (file.bytes != null) {
+        try {
+          final content = utf8.decode(file.bytes!);
+          parseTierList(content);
+          print("Tier list uploaded and parsed successfully.");
+           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Tier list loaded successfully!')));
+        } catch (e) { print("Error decoding or parsing tier list file: $e"); if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error reading file: $e'))); }
+      } else { print("Error: Could not read bytes from the selected file."); if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error: Could not read the selected file.'))); }
+    } else { print("No file selected for upload."); }
   }
 
-  setState(() {});
-}
+  void parseTierList(String content) {
+    final lines = content.split('\n');
+    Customer? currentCustomer;
+    ImageData? currentImage;
+    // Clear existing state before parsing
+    List<ImageData> newUnassignedImages = [];
+    Map<String, List<ImageData>> newCustomerItems = { for (var c in customers) c.name : [] };
 
-}
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i].trim();
+      if (line.isEmpty) continue;
+
+      if (line.startsWith('Tier: ')) {
+        final tierName = line.substring(6).trim();
+        currentCustomer = customers.firstWhere((c) => c.name == tierName, orElse: () => Customer(name: 'Unknown', items: [], color: Colors.grey)); // Handle unknown tiers gracefully
+        if (tierName == 'Unassigned') {
+           currentCustomer = null; // Signal to add to unassigned list
+        }
+        currentImage = null;
+      } else if (line.startsWith('Image: ')) {
+        final imageBase64 = line.substring(7).trim();
+        if (imageBase64.isEmpty) { /* Skip empty image data */ i+=4; continue; } // Assume 4 lines: Image, Title, Text, DriverSkills, ImageList start
+        Uint8List imageBytes;
+        try { imageBytes = base64Decode(imageBase64); } catch (e) { print("Error decoding base64 image: $e"); i+=4; continue; }
+
+        String title = ''; String text = ''; double driverSkills = 0.0; List<ImageData> subImageList = [];
+        int linesConsumed = 0;
+
+        // Safely read subsequent lines
+        if (i + 1 < lines.length && lines[i + 1].trim().startsWith('Title: ')) { title = lines[i + 1].trim().substring(7); linesConsumed++; }
+        if (i + 1 + linesConsumed < lines.length && lines[i + 1 + linesConsumed].trim().startsWith('Text: ')) {
+           try { text = jsonDecode(lines[i + 1 + linesConsumed].trim().substring(6)) as String; } catch (e) { text = lines[i + 1 + linesConsumed].trim().substring(6); } // Fallback
+           linesConsumed++;
+        }
+        if (i + 1 + linesConsumed < lines.length && lines[i + 1 + linesConsumed].trim().startsWith('DriverSkills: ')) { driverSkills = double.tryParse(lines[i + 1 + linesConsumed].trim().substring(14)) ?? 0.0; linesConsumed++; }
+        if (i + 1 + linesConsumed < lines.length && lines[i + 1 + linesConsumed].trim().startsWith('ImageList:')) {
+          linesConsumed++;
+          int subImageIndex = i + 1 + linesConsumed;
+          while (subImageIndex < lines.length && lines[subImageIndex].trim().startsWith('SubImage: ')) {
+             final subImageBase64 = lines[subImageIndex].trim().substring(9).trim();
+             if (subImageBase64.isEmpty) { subImageIndex += 4; continue; } // Assume 4 lines per sub-image
+             Uint8List subImageBytes;
+             try { subImageBytes = base64Decode(subImageBase64); } catch (e) { print("Error decoding base64 sub-image: $e"); subImageIndex += 4; continue; }
+
+             String subTitle = ''; String subText = ''; double subDriverSkills = 0.0; int subLinesConsumed = 0;
+             if (subImageIndex + 1 < lines.length && lines[subImageIndex + 1].trim().startsWith('Title: ')) { subTitle = lines[subImageIndex + 1].trim().substring(7); subLinesConsumed++; }
+             if (subImageIndex + 1 + subLinesConsumed < lines.length && lines[subImageIndex + 1 + subLinesConsumed].trim().startsWith('Text: ')) {
+                try { subText = jsonDecode(lines[subImageIndex + 1 + subLinesConsumed].trim().substring(6)) as String; } catch (e) { subText = lines[subImageIndex + 1 + subLinesConsumed].trim().substring(6); } // Fallback
+                subLinesConsumed++;
+             }
+             if (subImageIndex + 1 + subLinesConsumed < lines.length && lines[subImageIndex + 1 + subLinesConsumed].trim().startsWith('DriverSkills: ')) { subDriverSkills = double.tryParse(lines[subImageIndex + 1 + subLinesConsumed].trim().substring(14)) ?? 0.0; subLinesConsumed++; }
+
+             final subImageData = ImageData( const Uuid().v4(), '', bytes: subImageBytes, crossedOut: false, isBase64: true, title: subTitle, text: subText, imageList: [] )..driverSkills = subDriverSkills;
+             subImageList.add(subImageData);
+             subImageIndex += (1 + subLinesConsumed);
+             linesConsumed = (subImageIndex - (i + 1));
+          }
+        }
+
+        final imageData = ImageData( const Uuid().v4(), '', bytes: imageBytes, crossedOut: false, isBase64: true, title: title, text: text, imageList: subImageList.isEmpty ? null : subImageList )..driverSkills = driverSkills;
+        imageData.imageList ??= [imageData]; // Ensure list has self if empty
+
+        if (currentCustomer != null && newCustomerItems.containsKey(currentCustomer.name)) {
+          newCustomerItems[currentCustomer.name]!.add(imageData);
+        } else {
+          newUnassignedImages.add(imageData); // Add to temporary unassigned list
+        }
+        currentImage = imageData;
+        i += linesConsumed; // Skip processed lines
+      }
+    }
+
+    // Update the state once after parsing everything
+    setState(() {
+      images = newUnassignedImages;
+      for (var customer in customers) {
+        customer.items.clear();
+        if (newCustomerItems.containsKey(customer.name)) {
+           customer.items.addAll(newCustomerItems[customer.name]!);
+        }
+      }
+       // Ensure all loaded images have initialized imageList
+      for (var img in images) { img.imageList ??= [img]; }
+      for (var cust in customers) { for (var img in cust.items) { img.imageList ??= [img]; } }
+    });
+  }
+} // End of TierListPageState
 
 class Customer {
   final String name;
@@ -538,313 +828,507 @@ class Customer {
 
   Customer({required this.name, required this.items, required this.color});
 
-  Map<String, dynamic> toJson() {
-    return {
-      'name': name,
-      'items': items.map((image) => image.id).toList(),
-      'color': color.value,
-    };
-  }
+  // Removed toJson as it wasn't fully used and might be complex with full state saving
 }
 
 class ImageData {
   final String id;
-  final String src;
+  final String src; // Original source filename/identifier (can be empty if loaded)
   final Uint8List bytes;
   bool crossedOut;
-  bool isBase64;
+  bool isBase64; // Indicates if bytes are from a base64 source (loaded)
   String text;
   String title;
-  List<ImageData> imageList; // Add this line
-  double driverSkills = 0.0; // Add this
+  List<ImageData>? imageList; // Allow null initially
+  double driverSkills;
 
   ImageData(
     this.id,
     this.src, {
-    required this.crossedOut,
-    required this.isBase64,
     required this.bytes,
+    this.crossedOut = false,
+    this.isBase64 = false,
     this.text = '',
     this.title = '',
-    List<ImageData>? imageList,
-  }) : imageList = imageList ?? []; // Initialize imageList
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'src': src,
-      'crossedOut': crossedOut,
-      'isBase64': isBase64,
-      'text': text,
-      'title': title,
-    };
+    this.imageList, // Accept null
+    this.driverSkills = 0.0,
+  }) {
+     // Ensure imageList contains at least itself if initialized non-null but empty
+     // Or initialize it here if null was passed.
+     if (imageList == null) {
+       imageList = [this];
+     } else if (imageList!.isEmpty) {
+       imageList!.add(this); // Add self if list was passed but empty
+     }
   }
+
+  // Removed toJson as it wasn't fully used
 }
 
-class DraggableImage extends StatelessWidget {
-  final ImageData imageData;
-  final Function(ImageData) onDragComplete;
-  final Function(ImageData) onEditImageText;
+// Removed DraggableImage class as logic is integrated into CustomerCart and buildDraggableImage
 
-  const DraggableImage({
-    super.key,
-    required this.imageData,
-    required this.onDragComplete,
-    required this.onEditImageText,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Draggable<ImageData>(
-      data: imageData,
-      feedback: Container(
-        width: 100,
-        height: 100,
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: MemoryImage(imageData.bytes),
-            fit: BoxFit.cover,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.5),
-              blurRadius: 5,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-      ),
-      childWhenDragging: Container(
-        width: 100,
-        height: 100,
-        color: Colors.grey.withOpacity(0.5),
-      ),
-      child: Container(
-        width: 100,
-        height: 100,
-        margin: const EdgeInsets.all(4),
-        decoration: BoxDecoration(
-          image: DecorationImage(
-            image: MemoryImage(imageData.bytes),
-            fit: BoxFit.cover,
-          ),
-          border: Border.all(color: Colors.white, width: 2),
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              bottom: 0,
-              right: 0,
-              child: IconButton(
-                icon: const Icon(Icons.edit, color: Colors.white),
-                onPressed: () {
-                  onEditImageText(imageData);
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-      onDragCompleted: () => onDragComplete(imageData),
-    );
-  }
-}
-
-class CustomerCart extends StatefulWidget {  // Change to StatefulWidget
+class CustomerCart extends StatefulWidget {
   const CustomerCart({
     super.key,
     required this.customer,
-    this.highlighted = false,
+    required this.highlighted, // Keep or remove based on usage
     required this.crossOutMode,
-    required this.editMode,
-    required this.onImageDropped,
+    // MODIFIED: Change callback signature
+    required this.onImageDroppedAt,
     required this.onEditImageText,
     required this.onDeleteImage,
+    required this.onViewImage, // Add this callback
   });
 
   final Customer customer;
   final bool highlighted;
   final bool crossOutMode;
-  final bool editMode;
-  final Function(ImageData) onImageDropped;
+  // MODIFIED: Callback includes index
+  final Function(ImageData, int) onImageDroppedAt;
   final Function(ImageData) onEditImageText;
-  final Function(ImageData) onDeleteImage;
+  final Function(ImageData) onDeleteImage; // For deleting from the cart
+  final Function(ImageData) onViewImage;   // For viewing image details
 
   @override
   State<CustomerCart> createState() => _CustomerCartState();
 }
 
 class _CustomerCartState extends State<CustomerCart> {
-  // Add a scroll controller
   final ScrollController _scrollController = ScrollController();
+  // Define approximate item width including padding
+  static const double itemWidth = 100.0;
+  static const double itemPaddingHorizontal = 4.0;
+  static const double itemWidthWithPadding = itemWidth + (itemPaddingHorizontal * 2); // 100 width + 4 padding on each side
+  static const double indicatorWidth = 10.0; // Width of the drop indicator
+
+  // State variable to track highlight index
+  int? _dropIndexHighlight;
 
   @override
   void dispose() {
-    _scrollController.dispose();  // Dispose the controller
+    _scrollController.dispose();
     super.dispose();
   }
 
+  // Helper to calculate drop index from local offset
+  int _calculateDropIndex(Offset localPosition) {
+    final scrollOffset = _scrollController.offset;
+    // Adjust for the initial padding of the ListView and the indicator width
+    final relativeDx = localPosition.dx + scrollOffset - itemPaddingHorizontal;
+
+    // Calculate index based on slots (before, between, after items)
+    // Each slot effectively starts slightly before the item center
+    int index = ((relativeDx + (itemWidthWithPadding / 2)) / itemWidthWithPadding).floor();
+
+    // Clamp the index to be within the valid range for insertion slots [0, items.length]
+    index = index.clamp(0, widget.customer.items.length);
+    return index;
+  }
+
+
   @override
   Widget build(BuildContext context) {
+    // Outer container remains without decoration
     return Container(
-      decoration: BoxDecoration(
-        color: widget.customer.color.withOpacity(0.3),
-        border: Border.all(color: widget.customer.color, width: 2),
-      ),
-      height: 150, // Adjust height as needed
       child: DragTarget<ImageData>(
         builder: (context, candidateData, rejectedData) {
-          return Scrollbar(
-            controller: _scrollController,  // Assign controller to Scrollbar
-            thumbVisibility: true,
-            child: ListView.builder(
-              controller: _scrollController,  // Also assign to ListView
-              scrollDirection: Axis.horizontal,
-              itemCount: widget.customer.items.length + 1,
-              itemBuilder: (context, index) {
-                if (index == widget.customer.items.length) {
-                  return const SizedBox(width: 100);
-                }
-                return buildDraggableImage(widget.customer.items[index], context, index);
-              },
-            ),
+          bool canAccept = candidateData.isNotEmpty && !widget.crossOutMode;
+          // Modify this inner container's decoration
+          return Container(
+             decoration: BoxDecoration(
+                // Always apply customer color, adjust opacity based on canAccept
+                color: widget.customer.color.withOpacity(canAccept ? 0.5 : 0.3),
+                // Add border back for visual structure
+                border: Border.all(
+                  color: widget.customer.color,
+                  width: 2, // Consistent border width
+                ),
+             ),
+             child: Scrollbar(
+controller: _scrollController,
+               thumbVisibility: true,                // Make scrollbar always visible
+               child: ListView.builder(
+                 controller: _scrollController,
+                 scrollDirection: Axis.horizontal,
+                 // Add padding (only vertical needed now as items have horizontal)
+                 padding: const EdgeInsets.symmetric(vertical: 8.0),
+                 // Item count includes items + indicators (one indicator before first, one between each, one after last)
+                 itemCount: widget.customer.items.length * 2 + 1,
+                 itemBuilder: (context, listViewIndex) {
+                   // Calculate the potential item index this slot corresponds to
+                   final itemIndex = listViewIndex ~/ 2;
+
+                   // Even indices are indicators/spacers
+                   if (listViewIndex % 2 == 0) {
+                     bool isHighlighted = _dropIndexHighlight == itemIndex;
+                     return Container(
+                       width: isHighlighted ? itemWidthWithPadding / 2 : indicatorWidth, // Wider when highlighted
+                       margin: EdgeInsets.symmetric(vertical: isHighlighted ? 0 : 10), // Add margin to non-highlighted indicators
+                       decoration: BoxDecoration(
+                         color: isHighlighted ? Colors.white.withOpacity(0.7) : Colors.transparent, // Highlight color
+                         borderRadius: isHighlighted ? BorderRadius.circular(4) : null,
+                       ),
+                     );
+                   }
+                   // Odd indices are the actual items
+                   else {
+                     // Get the actual item index
+                     final actualItemIndex = (listViewIndex - 1) ~/ 2;
+                     if (actualItemIndex < widget.customer.items.length) {
+                       return buildCartItem(widget.customer.items[actualItemIndex], context, actualItemIndex);
+                     } else {
+                       return const SizedBox.shrink(); // Should not happen with correct itemCount
+                     }
+                   }
+                 },
+               ),
+             ),
           );
         },
-        onWillAccept: (data) => !widget.crossOutMode && !widget.editMode,
-        onAccept: (imageData) {
-          if (!widget.crossOutMode && !widget.editMode) {
-            widget.onImageDropped(imageData);
+        onWillAccept: (data) => data != null && !widget.crossOutMode,
+        onAcceptWithDetails: (details) {
+          final imageData = details.data;
+          // Get drop position relative to the DragTarget container
+          final RenderBox renderBox = context.findRenderObject() as RenderBox;
+          final localPosition = renderBox.globalToLocal(details.offset);
+
+          final index = _calculateDropIndex(localPosition);
+
+          print("Drop accepted at local offset ${localPosition.dx}, calculated index: $index");
+
+          // Call the updated callback with the index
+          widget.onImageDroppedAt(imageData, index);
+
+          // Reset highlight after drop
+          if (mounted) {
+            setState(() { _dropIndexHighlight = null; });
           }
+        },
+        onMove: (details) {
+          if (!widget.crossOutMode) {
+            // Get position relative to the DragTarget container
+            final RenderBox renderBox = context.findRenderObject() as RenderBox;
+            final localPosition = renderBox.globalToLocal(details.offset);
+            final index = _calculateDropIndex(localPosition);
+
+            // Update highlight state only if it changes
+            if (_dropIndexHighlight != index) {
+              if (mounted) {
+                 setState(() { _dropIndexHighlight = index; });
+              }
+              print("Drag move detected at local offset ${localPosition.dx}, potential index: $index");
+            }
+          }
+        },
+        onLeave: (data) {
+          // Reset highlight when drag leaves the target
+          if (mounted) {
+            setState(() { _dropIndexHighlight = null; });
+          }
+          print("Drag left target area.");
         },
       ),
     );
   }
 
-  // Modify the method to use widget. prefix
-  Widget buildDraggableImage(ImageData imageData, BuildContext context, int index) {
-    return DragTarget<ImageData>(
-      builder: (context, candidateData, rejectedData) {
-        return widget.crossOutMode || widget.editMode
-            ? buildImage(imageData, context)
-            : Draggable<ImageData>(
-                data: imageData,
-                feedback: Material(
-                  child: SizedBox(
-                    width: 100,
-                    height: 100,
-                    child: Stack(
-                      children: [
-                        Column(
-                          children: [
-                            if (imageData.title.isNotEmpty)
-                              Text(
-                                imageData.title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            Expanded(
-                              child: Image.memory(
-                                imageData.bytes,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (imageData.crossedOut)
-                          const Center(
-                            child: Icon(
-                              Icons.clear,
-                              color: Colors.red,
-                              size: 100, // Make the cross bigger
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-                childWhenDragging: Container(),
-                child: buildImage(imageData, context),
-                onDraggableCanceled: (velocity, offset) {
-                  if (widget.crossOutMode || widget.editMode) {
-                    return;
-                  }
-                },
-                ignoringFeedbackSemantics: widget.crossOutMode || widget.editMode,
-              );
-      },
-      onWillAccept: (data) => !widget.crossOutMode && !widget.editMode,
-      onAccept: (imageData) {
-        if (!widget.crossOutMode && !widget.editMode) {
-          widget.customer.items.remove(imageData);
-          widget.customer.items.insert(index, imageData);
-          (context as Element).markNeedsBuild();
-        }
-      },
-    );
+  // Local representation of an item within the cart
+  Widget buildCartItem(ImageData imageData, BuildContext context, int index) {
+     imageData.imageList ??= [imageData]; // Ensure list is initialized
+
+     Widget imageWidget = GestureDetector(
+       onTap: () {
+         if (widget.crossOutMode) {
+           // Need setState in parent (TierListPageState) to update UI
+           // This structure makes direct state update difficult.
+           // Consider calling a callback like widget.onToggleCrossout(imageData);
+           // For now, just update local state visually, parent handles actual data on view/save
+           setState(() { // This setState only affects CustomerCart visually
+              imageData.crossedOut = !imageData.crossedOut;
+           });
+           // TODO: Consider calling a callback to TierListPageState to update the actual data immediately
+           // widget.onToggleCrossout(imageData); // Example callback
+         // REMOVED: } else if (!widget.editMode) {
+         } else { // Allow viewing if not in crossOutMode
+           widget.onViewImage(imageData); // Use the view callback
+         }
+       },
+       child: SizedBox(
+         width: itemWidth, // Use constant
+         height: 100, // Ensure height is constrained
+         child: Stack(
+           // ... existing Stack children ...
+           fit: StackFit.expand,
+           children: [
+             Image.memory(imageData.bytes, fit: BoxFit.cover),
+             if (imageData.title.isNotEmpty) // Title Overlay
+                Positioned( top: 0, left: 0, right: 0, child: Container( color: Colors.black.withOpacity(0.5), padding: const EdgeInsets.all(2), child: Text( imageData.title, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, ), ), ),
+             if (imageData.crossedOut) // Cross-out Overlay
+                Container( color: Colors.black.withOpacity(0.4), child: const Center( child: Icon( Icons.clear, color: Colors.red, size: 80, ), ), ),
+             // Edit Button
+             Positioned( bottom: 0, right: 0, child: Container( color: Colors.black.withOpacity(0.5), child: IconButton( icon: const Icon(Icons.edit, color: Colors.white, size: 20), tooltip: "Edit Text/Skills", onPressed: () => widget.onEditImageText(imageData), padding: EdgeInsets.zero, constraints: const BoxConstraints(), ), ), ),
+             // Delete Button (Specific to cart)
+             Positioned( top: 0, right: 0, child: Container( color: Colors.black.withOpacity(0.5), child: IconButton( icon: const Icon(Icons.delete, color: Colors.orange, size: 20),
+               tooltip: "Remove from Tier", onPressed: () { widget.onDeleteImage(imageData); }, padding: EdgeInsets.zero, constraints: const BoxConstraints(), ), ), ),
+           ],
+         ),
+       ),
+     );
+
+     // Only allow dragging if not in crossOut mode
+     // REMOVED: if (widget.crossOutMode || widget.editMode) {
+     if (widget.crossOutMode) {
+       return Padding( // Add padding around non-draggable items
+          padding: const EdgeInsets.symmetric(horizontal: itemPaddingHorizontal), // Use constant
+          child: imageWidget,
+       );
+     } else {
+       return Padding( // Add padding around draggable items
+         padding: const EdgeInsets.symmetric(horizontal: itemPaddingHorizontal), // Use constant
+         child: Draggable<ImageData>(
+           data: imageData,
+           feedback: Material( color: Colors.transparent, child: SizedBox( width: itemWidth, height: 100, child: Opacity( opacity: 0.7, child: imageWidget, ), ), ),
+           childWhenDragging: Container( width: itemWidth, height: 100, margin: const EdgeInsets.symmetric(horizontal: itemPaddingHorizontal), color: Colors.grey.withOpacity(0.3), ),
+           child: imageWidget,
+           // ... existing drag callbacks ...
+         ),
+       );
+     }
+  }
+}
+
+
+// --- PhotoViewPage StatefulWidget ---
+class PhotoViewPage extends StatefulWidget {
+  final ImageData image; // The main image whose list we are viewing/editing
+  final List<ImageData> imageList; // The list containing the main image and its sub-images
+
+  const PhotoViewPage({
+    super.key,
+    required this.image,
+    required this.imageList, // This list will be modified directly by add/delete actions
+  });
+
+  @override
+  _PhotoViewPageState createState() => _PhotoViewPageState();
+}
+
+// --- _PhotoViewPageState State ---
+class _PhotoViewPageState extends State<PhotoViewPage> {
+  late int currentIndex;
+  late PageController _pageController;
+  // REMOVED: final List<ImageData> _addedImages = [];
+  bool _didAddImages = false; // Track if images were added in this session
+  String? _deletedImageId; // Track the ID of an image deleted in this session
+
+  @override
+  void initState() {
+    super.initState();
+    // Ensure the list passed in widget.imageList is the direct reference
+    // CRITICAL: Calculate currentIndex *before* initializing PageController
+    currentIndex = widget.imageList.indexWhere((img) => img.id == widget.image.id);
+    if (currentIndex == -1) {
+      // Fallback
+      currentIndex = widget.imageList.indexWhere((img) => listEquals(img.bytes, widget.image.bytes));
+      if (currentIndex == -1) {
+         print("Warning: Main image ID ${widget.image.id} not found in provided imageList. Defaulting to index 0.");
+         currentIndex = 0;
+         if (widget.imageList.isEmpty) {
+            print("Error: imageList is empty in PhotoViewPage initState.");
+            // If list is empty, we can't show anything, maybe pop immediately?
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                Navigator.pop(context, PhotoViewResult()); // Pop with no changes
+              }
+            });
+         }
+      }
+    }
+    // Initialize controller with the determined index
+    _pageController = PageController(initialPage: currentIndex);
+    print("PhotoViewPage initState: imageList length = ${widget.imageList.length}, initial index = $currentIndex");
   }
 
-  Widget buildImage(ImageData imageData, BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        if (widget.crossOutMode) {
-          imageData.crossedOut = !imageData.crossedOut;
-          (context as Element).markNeedsBuild();
+   @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  // --- Modified Add Images ---
+  void _addImages() async {
+    final pickedFiles = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: true,
+      withData: true,
+    );
+
+    if (pickedFiles != null && pickedFiles.files.isNotEmpty) {
+      final initialLength = widget.imageList.length;
+      int countAdded = 0;
+
+      setState(() { // Update the UI immediately
+        for (final file in pickedFiles.files) {
+          if (file.bytes != null) {
+            String imageTitle = file.name.split('.').first;
+            if (!kIsWeb && file.path != null && file.path!.isNotEmpty) {
+              try { String directoryPath = p.dirname(file.path!); imageTitle = p.basename(directoryPath); } catch (e) { /* Handle error */ }
+            }
+            final newImageData = ImageData( const Uuid().v4(), file.name, bytes: file.bytes!, crossedOut: false, isBase64: false, title: imageTitle, imageList: [] );
+            // The constructor now correctly initializes imageList = [newImageData]
+
+            // Add to the list passed via widget (modifies the original list in TierListPageState)
+            widget.imageList.add(newImageData);
+            countAdded++;
+            _didAddImages = true; // Set flag
+          }
         }
+      });
+
+      print("Added $countAdded images. New list length: ${widget.imageList.length}");
+
+      // Animate to the first newly added image
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+         if (mounted && widget.imageList.length > initialLength) {
+            // Animate page controller to the index of the first added image
+            _pageController.animateToPage( initialLength, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut, );
+         }
+      });
+       ScaffoldMessenger.of(context).showSnackBar( SnackBar(content: Text('$countAdded sub-image(s) added.')) );
+    }
+  }
+
+  // --- Modified Delete Function ---
+  void _deleteCurrentImage() async {
+    if (widget.imageList.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar( const SnackBar(content: Text("Cannot delete the only image.")) );
+      return;
+    }
+
+    // Ensure currentIndex is valid before accessing
+    if (currentIndex < 0 || currentIndex >= widget.imageList.length) {
+       print("Error: Invalid currentIndex ($currentIndex) for deletion.");
+       return;
+    }
+
+    final imageToDelete = widget.imageList[currentIndex];
+
+    final bool? confirmDelete = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("Confirm Deletion"),
+          content: Text("Are you sure you want to delete this sub-image titled '${imageToDelete.title}'?"),
+          actions: <Widget>[
+            TextButton(child: const Text("Cancel"), onPressed: () => Navigator.of(context).pop(false)),
+            TextButton(style: TextButton.styleFrom(foregroundColor: Colors.red), child: const Text("Delete"), onPressed: () => Navigator.of(context).pop(true)),
+          ],
+        );
       },
-      child: SizedBox(
-        width: 100,
-        height: 100,
-        child: Stack(
+    );
+
+    if (confirmDelete == true && mounted) {
+      _deletedImageId = imageToDelete.id;
+      print("Popping PhotoViewPage, returning deleted image ID: $_deletedImageId");
+      // Pop with result containing the deleted ID
+      Navigator.pop(context, PhotoViewResult(deletedSubImageId: _deletedImageId));
+    }
+  }
+
+  // --- Function to handle popping with results ---
+  Future<bool> _onWillPop() async {
+    if (_deletedImageId != null) {
+      // If an image was deleted, that result takes precedence
+      Navigator.pop(context, PhotoViewResult(deletedSubImageId: _deletedImageId));
+    } else {
+      // Otherwise, return whether images were added or not
+      print("Popping PhotoViewPage via WillPopScope, returning imagesAdded: $_didAddImages");
+      Navigator.pop(context, PhotoViewResult(imagesAdded: _didAddImages));
+    }
+    // Prevent default pop because we are handling it manually
+    return false;
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
+    // Use WillPopScope to intercept back navigation and return results
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        appBar: AppBar(
+          // ... app bar title and actions ...
+          title: Text(widget.imageList.isNotEmpty && currentIndex >= 0 && currentIndex < widget.imageList.length // Add index check >= 0
+              ? (widget.imageList[currentIndex].title.isNotEmpty ? widget.imageList[currentIndex].title : "Image Viewer")
+              : "Image Viewer"), // Handle potential empty list/invalid index
+          // ... actions ...
+          actions: [
+            IconButton(icon: const Icon(Icons.add_photo_alternate), tooltip: "Add Sub-Images", onPressed: _addImages),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              tooltip: "Delete Current Sub-Image",
+              // Enable delete only if there's more than one image
+              onPressed: widget.imageList.length > 1 ? _deleteCurrentImage : null,
+            ),
+          ],
+        ),
+        body: Stack(
+          alignment: Alignment.center,
           children: [
-            Column(
-              children: [
-                if (imageData.title.isNotEmpty)
-                  Text(
-                    imageData.title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
+            // Gallery Column
+            if (widget.imageList.isNotEmpty) // Only build gallery if list is not empty
+              Column(
+                children: [
+                  Expanded(
+                    child: PhotoViewGallery.builder(
+                      // SIMPLIFIED KEY: Based on main image ID and list length
+                      key: ValueKey('${widget.image.id}_${widget.imageList.length}'),
+                      itemCount: widget.imageList.length,
+                      pageController: _pageController, // Use the initialized controller
+                      builder: (context, index) {
+                         // Check index validity again just in case
+                         if (index < 0 || index >= widget.imageList.length) {
+                            print("Error: Invalid index $index in PhotoViewGallery builder.");
+                            return PhotoViewGalleryPageOptions.customChild(
+                              child: Container(color: Colors.red, child: const Center(child: Text("Error: Invalid Image Index"))),
+                              initialScale: PhotoViewComputedScale.contained,
+                              minScale: PhotoViewComputedScale.contained * 0.8,
+                              maxScale: PhotoViewComputedScale.covered * 2.0,
+                            );
+                         }
+                         // Get image data for the CURRENT build index
+                         final imgData = widget.imageList[index];
+                         return PhotoViewGalleryPageOptions(
+                          imageProvider: MemoryImage(imgData.bytes),
+                          initialScale: PhotoViewComputedScale.contained,
+                          minScale: PhotoViewComputedScale.contained * 0.8,
+                          maxScale: PhotoViewComputedScale.covered * 2.0,
+                          heroAttributes: PhotoViewHeroAttributes(tag: imgData.id), // Use unique ID for hero tag
+                        );
+                      },
+                      onPageChanged: (index) {
+                        // Update the state variable when page changes
+                        if (mounted) {
+                           setState(() { currentIndex = index; });
+                        }
+                      },
+                      loadingBuilder: (context, event) => const Center(child: CircularProgressIndicator()),
+                      backgroundDecoration: const BoxDecoration(color: Colors.black),
                     ),
                   ),
-                Expanded(
-                  child: Image.memory(
-                    imageData.bytes,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ],
-            ),
-            if (imageData.crossedOut)
-              const Center(
-                child: Icon(
-                  Icons.clear,
-                  color: Colors.red,
-                  size: 100, // Make the cross bigger
-                ),
-              ),
-            Positioned(
-              bottom: 0,
-              right: 0,
-              child: IconButton(
-                icon: const Icon(Icons.edit, color: Colors.white),
-                onPressed: () {
-                  widget.onEditImageText(imageData);
-                },
-              ),
-            ),
-            Positioned(
-              top: 4,
-              right: 4,
-              child: IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                onPressed: () {
-                  widget.onDeleteImage(imageData);
-                  (context as Element).markNeedsBuild();
-                },
-              ),
-            ),
+                  // Index indicator
+                  if (widget.imageList.length > 1)
+                    Padding( padding: const EdgeInsets.all(8.0), child: Text( "${currentIndex + 1} / ${widget.imageList.length}", style: const TextStyle(color: Colors.white, fontSize: 16.0, backgroundColor: Colors.black54), ), ),
+                ],
+              )
+            else // Show message if list is empty
+              const Center(child: Text("No images to display.")),
+
+            // Navigation Arrows (only if list is not empty and has multiple items)
+            if (widget.imageList.length > 1) ...[
+               // Use currentIndex state variable for enabling/disabling arrows
+               if (currentIndex > 0) Align( alignment: Alignment.centerLeft, child: Container( margin: const EdgeInsets.only(left: 8.0), decoration: BoxDecoration( color: Colors.black.withOpacity(0.4), shape: BoxShape.circle, ), child: IconButton( icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white), tooltip: "Previous Image", onPressed: () => _pageController.previousPage( duration: const Duration(milliseconds: 300), curve: Curves.easeInOut, ), ), ), ),
+               if (currentIndex < widget.imageList.length - 1) Align( alignment: Alignment.centerRight, child: Container( margin: const EdgeInsets.only(right: 8.0), decoration: BoxDecoration( color: Colors.black.withOpacity(0.4), shape: BoxShape.circle, ), child: IconButton( icon: const Icon(Icons.arrow_forward_ios, color: Colors.white), tooltip: "Next Image", onPressed: () => _pageController.nextPage( duration: const Duration(milliseconds: 300), curve: Curves.easeInOut, ), ), ), ),
+            ]
           ],
         ),
       ),
@@ -852,98 +1336,6 @@ class _CustomerCartState extends State<CustomerCart> {
   }
 }
 
-class PhotoViewPage extends StatefulWidget {
-  final ImageData image;
-  final List<ImageData> imageList;
-
-  const PhotoViewPage({super.key, required this.image, required this.imageList});
-
-  @override
-  _PhotoViewPageState createState() => _PhotoViewPageState();
-}
-
-class _PhotoViewPageState extends State<PhotoViewPage> {
-  int currentIndex = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    currentIndex = widget.imageList.indexWhere((img) => img.id == widget.image.id);
-    if (currentIndex < 0) currentIndex = 0;
-  }
-
-  void _addImages() async {
-    final pickedFiles = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      allowMultiple: true,
-    );
-
-    if (pickedFiles != null) {
-      setState(() {
-        for (final file in pickedFiles.files) {
-          final bytes = file.bytes ?? Uint8List(0);
-          final uniqueId = Uuid().v4();
-          final imageData = ImageData(
-            uniqueId,
-            file.name,
-            bytes: bytes,
-            crossedOut: false,
-            isBase64: false,
-          );
-          widget.imageList.add(imageData); // Add to the image's own list
-        }
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final currentImage = widget.imageList[currentIndex];
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(currentImage.title),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: _addImages,
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          PhotoView(
-            imageProvider: MemoryImage(currentImage.bytes),
-          ),
-          Positioned(
-            left: 0,
-            top: MediaQuery.of(context).size.height / 2 - 24,
-            child: IconButton(
-              icon: const Icon(Icons.arrow_back, size: 48),
-              onPressed: () {
-                setState(() {
-                  currentIndex = (currentIndex - 1 + widget.imageList.length) % widget.imageList.length;
-                });
-              },
-            ),
-          ),
-          Positioned(
-            right: 0,
-            top: MediaQuery.of(context).size.height / 2 - 24,
-            child: IconButton(
-              icon: const Icon(Icons.arrow_forward, size: 48),
-              onPressed: () {
-                setState(() {
-                  currentIndex = (currentIndex + 1) % widget.imageList.length;
-                });
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class TextEditorPage extends StatefulWidget {
   final ImageData image;
@@ -954,141 +1346,199 @@ class TextEditorPage extends StatefulWidget {
   _TextEditorPageState createState() => _TextEditorPageState();
 }
 
-// ======================================================================
-// Modified _TextEditorPageState to auto-scroll the text cursor as user types
 class _TextEditorPageState extends State<TextEditorPage> {
-  bool _isBold = false;
   late TextEditingController _titleController;
-  late TextEditingController _textController; // Simplified
-  late final TextEditingController _driverSkillsController; // Add this
-  late final ScrollController _textScrollController; // Scroll controller for text field auto-scroll
+  late TextEditingController _textController;
+  late TextEditingController _driverSkillsController;
+  final ScrollController _textScrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    // Ensure imageList is initialized before accessing properties
+    widget.image.imageList ??= [widget.image];
+
     _titleController = TextEditingController(text: widget.image.title);
     _textController = TextEditingController(text: widget.image.text);
-    _textScrollController = ScrollController(); // Initialize the scroll controller
-    // Listener updates the image text and auto-scrolls to show the latest text
+    _driverSkillsController = TextEditingController(text: widget.image.driverSkills.toStringAsFixed(1)); // Format initial value
+
+    _titleController.addListener(() { widget.image.title = _titleController.text; });
     _textController.addListener(() {
       widget.image.text = _textController.text;
-      if (_textScrollController.hasClients) {
-        _textScrollController.jumpTo(_textScrollController.position.maxScrollExtent);
-      }
+      // Auto-scroll
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+         if (_textScrollController.hasClients) {
+           _textScrollController.jumpTo(_textScrollController.position.maxScrollExtent);
+         }
+      });
+      // Trigger rebuild for RichText update
+      setState(() {});
     });
-    _driverSkillsController = TextEditingController(
-      text: widget.image.driverSkills.toString(),
-    );
     _driverSkillsController.addListener(() {
       final parsed = double.tryParse(_driverSkillsController.text) ?? 0.0;
-      if (parsed < 0) {
-        widget.image.driverSkills = 0.0;
-      } else if (parsed > 10) {
-        widget.image.driverSkills = 10.0;
-      } else {
-        widget.image.driverSkills = parsed;
-      }
+      // Clamp value between 0 and 10
+      widget.image.driverSkills = parsed.clamp(0.0, 10.0);
+      // Optional: Update text field if clamping occurred, requires careful handling to avoid loops
+      // if (widget.image.driverSkills != parsed && _driverSkillsController.text != widget.image.driverSkills.toStringAsFixed(1)) {
+      //    final currentSelection = _driverSkillsController.selection;
+      //    _driverSkillsController.text = widget.image.driverSkills.toStringAsFixed(1);
+      //    _driverSkillsController.selection = currentSelection; // Restore cursor position
+      // }
     });
   }
 
   @override
   void dispose() {
-    // Ensure full text is saved before disposing controllers.
+    // Save final values just in case listeners didn't catch the very last change
+    widget.image.title = _titleController.text;
     widget.image.text = _textController.text;
+    // No need to parse driver skills again, it's updated via listener
     _titleController.dispose();
     _textController.dispose();
     _driverSkillsController.dispose();
-    _textScrollController.dispose(); // Dispose scroll controller to free resources
+    _textScrollController.dispose();
     super.dispose();
   }
 
-  // New helper method: builds a TextSpan with bold styling for text between '**'
+  // Helper method for RichText styling
   TextSpan _buildStyledText(String text) {
     final List<TextSpan> spans = [];
-    final pattern = RegExp(r'(\*\*)(.*?)\1');
+    final pattern = RegExp(r'(\*\*)([^*]+?)\1'); // Non-greedy match inside **
     int lastIndex = 0;
-    for (final m in pattern.allMatches(text)) {
-      if (m.start > lastIndex) {
-        spans.add(TextSpan(text: text.substring(lastIndex, m.start)));
+
+    for (final Match match in pattern.allMatches(text)) {
+      if (match.start > lastIndex) {
+        spans.add(TextSpan(text: text.substring(lastIndex, match.start)));
       }
-      // Add opening markers
-      spans.add(const TextSpan(text: '**'));
-      // Add bold text
-      spans.add(TextSpan(text: m.group(2), style: const TextStyle(fontWeight: FontWeight.bold)));
-      // Add closing markers
-      spans.add(const TextSpan(text: '**'));
-      lastIndex = m.end;
+      // Add bold text without the markers
+      spans.add(TextSpan(text: match.group(2), style: const TextStyle(fontWeight: FontWeight.bold)));
+      lastIndex = match.end;
     }
+
     if (lastIndex < text.length) {
       spans.add(TextSpan(text: text.substring(lastIndex)));
     }
+
+    // Base style for the entire RichText
     return TextSpan(style: const TextStyle(color: Colors.white, fontSize: 16), children: spans);
   }
-  
+
+  // Toggles bold markdown around selection or at cursor position
+  void _toggleBold() {
+    final String currentText = _textController.text;
+    final TextSelection selection = _textController.selection;
+    String newText;
+
+    if (selection.isCollapsed) {
+      // Insert '**' at cursor
+      newText = currentText.substring(0, selection.start) +
+                '****' +
+                currentText.substring(selection.end);
+      // Move cursor between the markers
+      _textController.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: selection.start + 2),
+      );
+    } else {
+      // Wrap selection with '**'
+      final String selectedText = selection.textInside(currentText);
+      newText = currentText.substring(0, selection.start) +
+                '**' + selectedText + '**' +
+                currentText.substring(selection.end);
+      // Keep selection around the original text + markers
+      _textController.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection(
+          baseOffset: selection.start + 2,
+          extentOffset: selection.end + 2,
+        ),
+      );
+    }
+     // Manually update image text as controller listener might lag
+     widget.image.text = _textController.text;
+     setState(() {}); // Trigger rebuild for RichText
+  }
+
   @override
   Widget build(BuildContext context) {
     return Shortcuts(
-      // ...existing code...
-      shortcuts: {
+      shortcuts: <LogicalKeySet, Intent>{
         LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyB): const BoldIntent(),
       },
       child: Actions(
-        // ...existing code...
-        actions: {
+        actions: <Type, Action<Intent>>{
           BoldIntent: CallbackAction<BoldIntent>(
-            onInvoke: (BoldIntent intent) {
-                            setState(() {
-                              _isBold = !_isBold;
-                            });
-                            return null;
-                          },
+            onInvoke: (BoldIntent intent) => _toggleBold(),
           ),
         },
         child: Focus(
-          autofocus: true,
-          child: WillPopScope(
+          autofocus: true, // Focus the main content area
+          child: WillPopScope( // Use WillPopScope for saving on back button
             onWillPop: () async {
+              // Final save before popping
               widget.image.title = _titleController.text;
               widget.image.text = _textController.text;
-              return true;
+              // Driver skills are updated via listener
+              print("Popping TextEditorPage, saved data.");
+              return true; // Allow pop
             },
             child: Scaffold(
               appBar: AppBar(
-                // ...existing code...
                 title: Row(
                   children: [
-                    Text('Edit Text for ${widget.image.src}'),
-                    const SizedBox(width: 8),
-                    const Text('Driver Skills'), // New label
+                    Expanded( // Allow title to take space
+                       child: Text(
+                          'Edit: ${widget.image.title.isNotEmpty ? widget.image.title : widget.image.src}',
+                          overflow: TextOverflow.ellipsis,
+                       )
+                    ),
+                    const Text(' Skills:'),
                     const SizedBox(width: 8),
                     SizedBox(
-                      width: 60,
+                      width: 60, // Keep fixed width for skills input
                       child: TextField(
-                        controller: _driverSkillsController, // Use the controller
+                        controller: _driverSkillsController,
+                        textAlign: TextAlign.center, // Center skills value
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'^\d{0,2}(\.\d{0,2})?$')),
-                        ],
+                        // Allow digits, one decimal point
+                        inputFormatters: [ FilteringTextInputFormatter.allow(RegExp(r'^\d{0,2}\.?\d{0,1}')), ],
                         decoration: const InputDecoration(
                           hintText: '0-10',
+                          isDense: true, // Reduce padding
+                          contentPadding: EdgeInsets.symmetric(vertical: 8.0), // Adjust vertical padding
                         ),
+                        style: const TextStyle(fontSize: 14), // Adjust font size
                       ),
                     ),
                   ],
                 ),
                 actions: [
+                  IconButton( // Add Bold toggle button
+                     icon: const Icon(Icons.format_bold),
+                     tooltip: "Toggle Bold (Ctrl+B)",
+                     onPressed: _toggleBold,
+                  ),
                   IconButton(
                     icon: const Icon(Icons.photo),
-                    onPressed: () {
-                      Navigator.push(
+                    tooltip: "View Image(s)",
+                    // MODIFIED: Make onPressed async and handle potential result
+                    onPressed: () async {
+                      widget.image.imageList ??= [widget.image];
+                      // Await result from PhotoViewPage
+                      final result = await Navigator.push<PhotoViewResult?>(
                         context,
                         MaterialPageRoute(
                           builder: (context) => PhotoViewPage(
                             image: widget.image,
-                            imageList: widget.image.imageList,
+                            imageList: widget.image.imageList!,
                           ),
                         ),
                       );
+                      // Refresh TextEditorPage state if PhotoViewPage indicated changes
+                      if (result != null && (result.imagesAdded || result.deletedSubImageId != null) && mounted) {
+                         print("Returned to TextEditorPage from PhotoViewPage with result: $result. Refreshing state.");
+                         setState(() {});
+                      }
                     },
                   ),
                 ],
@@ -1099,48 +1549,52 @@ class _TextEditorPageState extends State<TextEditorPage> {
                   children: [
                     TextField(
                       controller: _titleController,
-                      style: TextStyle(
-                        fontWeight: _isBold ? FontWeight.bold : FontWeight.normal,
-                      ),
                       decoration: const InputDecoration(
+                        labelText: 'Title', // Use labelText
                         hintText: 'Enter title here...',
                         border: OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // Replace plain text field with a Stack that overlays styled text
-                    Stack(
-                      children: [
-                        // RichText displays styled text (with markers) in the background
-                        Positioned.fill(
-                          child: SingleChildScrollView(
-                            padding: const EdgeInsets.all(12),
-                            child: RichText(
-                              text: _buildStyledText(_textController.text),
+                    Expanded( // Allow text area to take remaining space
+                      child: Stack(
+                        children: [
+                          // Background RichText for styling
+                          Container( // Add border matching TextField
+                             decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey),
+                                borderRadius: BorderRadius.circular(4.0),
+                             ),
+                             width: double.infinity, // Ensure it fills width
+                             child: SingleChildScrollView( // Allow scrolling for styled text too
+                               controller: _textScrollController, // Link scroll controllers
+                               padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0), // Match TextField padding
+                               child: RichText(
+                                 text: _buildStyledText(_textController.text),
+                               ),
+                             ),
+                          ),
+                          // Foreground TextField for editing (transparent text)
+                          TextField(
+                            controller: _textController,
+                            scrollController: _textScrollController, // Use the same controller
+                            maxLines: null, // Allow multiple lines
+                            expands: true, // Expand to fill Expanded widget
+                            keyboardType: TextInputType.multiline,
+                            style: const TextStyle(
+                              color: Colors.transparent, // Hide the actual text
+                              fontSize: 16, // Match RichText font size
                             ),
+                            cursorColor: Colors.white, // Make cursor visible
+                            decoration: const InputDecoration(
+                              hintText: 'Enter text... use **bold** or Ctrl+B',
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0), // Match RichText padding
+                            ),
+                            // onChanged handled by listener now
                           ),
-                        ),
-                        // Editable text field with transparent text so input is preserved
-                        TextField(
-                          controller: _textController,
-                          scrollController: _textScrollController, // Enables auto-scroll based on text length
-                          maxLines: null,
-                          style: const TextStyle(
-                            color: Colors.transparent,
-                            // Ensures caret and selection remain visible
-                            backgroundColor: Colors.transparent,
-                          ),
-                          cursorColor: Colors.white,
-                          decoration: const InputDecoration(
-                            border: OutlineInputBorder(),
-                            hintText: 'Enter text here... use **bold** for bold',
-                          ),
-                          // Update UI on changes to refresh styling
-                          onChanged: (value) {
-                            setState(() {});
-                          },
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
