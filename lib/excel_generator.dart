@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'package:collection/collection.dart'; // Import for mode calculation
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -21,14 +22,13 @@ class ExcelGeneratorPage extends StatefulWidget {
 
 class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
   // Pre-defined column names for this specific application
+  // UPDATED: Replaced with new column headers provided by the user
   final List<String> defaultColumnNames = [
-    "Scouter Initials", "Match Number","Robot","Future Alliance in Qualy?","Team Number",
-    "Starting Position","No Show", "Moved?", "Auto Coral L1 Scored", "Auto Coral L2 Scored", 
-    "Auto Coral L3 Scored", "Auto Coral L4 Scored", "Auto Barge Algae Scored", 
-    "Auto Processor Algae Scored", "Dislodged Algae?", "Auto Foul", "Dislodged Algae?", 
-    "Pickup Location", "Coral L1 Scored", "Coral L2 Scored", "Coral L3 Scored", "Coral L4 Scored", 
-    "Barge Algae Scored", "Processor Algae Scored", "Crossed Feild/Played Defense", "Tipped/Fell Over?",
-    "Touched Opposing Cage?", "Died?", "End Position", "BROKE?","Defended?", "CoralHPMistake","Yellow/Red Card"
+    "Lead Scouter", "Scouter Name", "Match Number", "Future Alliance in Qualy?", "Team Number",
+    "Did something?", "Did Foul?", "Did auton worked?",
+    "Coral L1 Scored", "Coral L2 Scored", "Coral L3 Scored", "Coral L4 Scored",
+    "Played Algae?(Disloged NO COUNT)", "Crossed Feild/Played Defense?", "Tipped/Fell Over?",
+    "Died?", "Was the robot Defended by someone?", "Yellow/Red Card", "Climbed?"
   ];
 
   // Header names are entered as comma-separated text.
@@ -39,6 +39,10 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
   Map<String, int> _columnIndices = {};
   // New: State variable to hold the names of columns selected for overall average calculation
   List<String> _selectedNumericColumnsForOverall = [];
+  // New: State variable to hold the names of columns selected for the statistics table
+  List<String> _selectedStatsColumns = [];
+  // New: State variable to hold the names of boolean columns selected for mode calculation
+  List<String> _modeBooleanColumns = [];
   
   @override
   void initState() {
@@ -61,9 +65,9 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
     }
     
     // After setting initial header, map column indices
-    _updateColumnIndices();
-    // Initialize selected columns for overall average (default to all coral/algae)
-    _initializeSelectedNumericColumns();
+    _updateColumnIndices(); // This will also call _initializeSelectedColumns
+    // Note: _initializeSelectedNumericColumns is called within _updateColumnIndices
+    // Note: _initializeSelectedStatsColumns is called within _updateColumnIndices
   }
 
   @override
@@ -85,8 +89,21 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
     double sumSquaredDiffs = values.map((v) => pow(v - avg, 2) as double).reduce((a, b) => a + b);
     return sqrt(sumSquaredDiffs / values.length);
   }
+
+  // Helper: compute mode from a list of strings.
+  String calculateMode(List<String> values) {
+    if (values.isEmpty) return 'N/A';
+    // Filter out empty strings before calculating mode
+    final non_empty_values = values.where((v) => v.trim().isNotEmpty).toList();
+    if (non_empty_values.isEmpty) return 'N/A';
+
+    final frequencyMap = non_empty_values.groupListsBy((element) => element);
+    final sortedByFrequency = frequencyMap.entries.toList()
+      ..sort((a, b) => b.value.length.compareTo(a.value.length));
+    return sortedByFrequency.first.key;
+  }
   
-  // Helper to find column indices by their names
+  // Helper to find column indices by their names and initialize selections
   void _updateColumnIndices() {
     _columnIndices.clear();
     if (sheetData.isEmpty) return;
@@ -97,16 +114,21 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
     }
     // Re-initialize selected columns if header changes
     _initializeSelectedNumericColumns();
+    _initializeSelectedStatsColumns(); // Initialize stats columns
+    // Mode columns are typically user-selected, maybe don't auto-reset? Or reset to empty?
+    // Let's reset to empty for simplicity when header changes.
+    _modeBooleanColumns = [];
   }
 
   // New: Initialize or update the list of columns used for overall average
   void _initializeSelectedNumericColumns() {
     // Default to coral and algae columns if not already set or if header changed
+    // REMOVED: All 'Auto...' columns and 'Barge Algae Scored', 'Processor Algae Scored'
     List<String> defaultOverallColumns = [
-      'Auto Coral L1 Scored', 'Auto Coral L2 Scored', 'Auto Coral L3 Scored', 'Auto Coral L4 Scored',
-      'Auto Barge Algae Scored', 'Auto Processor Algae Scored',
-      'Coral L1 Scored', 'Coral L2 Scored', 'Coral L3 Scored', 'Coral L4 Scored',
-      'Barge Algae Scored', 'Processor Algae Scored'
+      // Removed: 'Auto Coral L1 Scored', 'Auto Coral L2 Scored', 'Auto Coral L3 Scored', 'Auto Coral L4 Scored',
+      // Removed: 'Auto Barge Algae Scored', 'Auto Processor Algae Scored',
+      'Coral L1 Scored', 'Coral L2 Scored', 'Coral L3 Scored', 'Coral L4 Scored'
+      // Removed: 'Barge Algae Scored', 'Processor Algae Scored'
     ];
     // Filter defaults to only include columns actually present in the current header
     List<String> currentHeader = sheetData.isNotEmpty ? sheetData.first : [];
@@ -116,7 +138,33 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
     // If the filtered list is empty (e.g., custom header), try to find potential numeric columns
     if (_selectedNumericColumnsForOverall.isEmpty && sheetData.length > 1) {
        _selectedNumericColumnsForOverall = _findPotentialNumericColumns();
+       // Ensure the specific teleop algae and auto columns are not accidentally included
+       _selectedNumericColumnsForOverall.remove('Barge Algae Scored');
+       _selectedNumericColumnsForOverall.remove('Processor Algae Scored');
+       _selectedNumericColumnsForOverall.remove('DidSomething?');
+       _selectedNumericColumnsForOverall.remove('DidFoul?');
+       _selectedNumericColumnsForOverall.remove('DidAutonWorked?');
+       // Also remove old auto columns just in case they appear in a custom header
+       _selectedNumericColumnsForOverall.remove('Auto Coral L1 Scored');
+       _selectedNumericColumnsForOverall.remove('Auto Coral L2 Scored');
+       _selectedNumericColumnsForOverall.remove('Auto Coral L3 Scored');
+       _selectedNumericColumnsForOverall.remove('Auto Coral L4 Scored');
+       _selectedNumericColumnsForOverall.remove('Auto Barge Algae Scored');
+       _selectedNumericColumnsForOverall.remove('Auto Processor Algae Scored');
     }
+  }
+
+  // New: Initialize or update the list of columns shown in the statistics table
+  void _initializeSelectedStatsColumns() {
+      List<String> currentHeader = sheetData.isNotEmpty ? sheetData.first : [];
+      // Default to all columns except scouter names initially
+      List<String> defaultStatsCols = currentHeader
+          .where((col) => col != "Lead Scouter" && col != "Scouter Name")
+          .toList();
+
+      // If _selectedStatsColumns is empty or header changed significantly, reset
+      // For simplicity, let's just reset to default every time indices are updated.
+      _selectedStatsColumns = defaultStatsCols;
   }
 
   // New: Helper to guess potential numeric columns based on data
@@ -128,14 +176,67 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
       List<String> firstDataRow = sheetData[1];
 
       for (int j = 0; j < header.length; j++) {
-          // Skip Team Number column
-          if (header[j] == 'Team Number') continue;
+          // Skip specific columns we don't want in overall average by default
+          // ADDED: New auto boolean columns and old auto numeric columns to exclusion list
+          if (header[j] == 'Team Number' ||
+              header[j] == 'Barge Algae Scored' || // Exclude explicitly
+              header[j] == 'Processor Algae Scored' || // Exclude explicitly
+              header[j] == 'End Position' || // Exclude explicitly
+              header[j] == 'DidSomething?' || // Exclude explicitly
+              header[j] == 'DidFoul?' || // Exclude explicitly
+              header[j] == 'DidAutonWorked?' || // Exclude explicitly
+              header[j] == 'Auto Coral L1 Scored' || // Exclude old auto explicitly
+              header[j] == 'Auto Coral L2 Scored' || // Exclude old auto explicitly
+              header[j] == 'Auto Coral L3 Scored' || // Exclude old auto explicitly
+              header[j] == 'Auto Coral L4 Scored' || // Exclude old auto explicitly
+              header[j] == 'Auto Barge Algae Scored' || // Exclude old auto explicitly
+              header[j] == 'Auto Processor Algae Scored') continue; // Exclude old auto explicitly
+
           // Check if the value in the first data row looks numeric
           if (j < firstDataRow.length && double.tryParse(firstDataRow[j]) != null) {
               potentialColumns.add(header[j]);
           }
       }
       return potentialColumns;
+  }
+
+  // New: Helper to guess potential boolean columns based on data/name
+  List<String> _findPotentialBooleanColumns() {
+      List<String> potentialColumns = [];
+      if (sheetData.isEmpty) return potentialColumns;
+
+      List<String> header = sheetData.first;
+      List<String> numericColumns = _findPotentialNumericColumns(); // Find numeric ones first
+
+      for (int j = 0; j < header.length; j++) {
+          String colName = header[j];
+          // Skip identifying info and known numeric columns
+          if (colName == 'Team Number' ||
+              colName == 'Match Number' ||
+              colName == 'Lead Scouter' ||
+              colName == 'Scouter Name' ||
+              numericColumns.contains(colName) ||
+              _selectedNumericColumnsForOverall.contains(colName)) { // Also skip those selected for overall avg
+              continue;
+          }
+
+          // Heuristic: Include columns with '?' or specific keywords, or generally non-numeric ones
+          if (colName.contains('?') ||
+              colName.toLowerCase().contains('did') ||
+              colName.toLowerCase().contains('was') ||
+              colName.toLowerCase().contains('played') ||
+              colName.toLowerCase().contains('climbed') ||
+              colName.toLowerCase().contains('card'))
+          {
+              potentialColumns.add(colName);
+          }
+          // Add other non-numeric columns as potential candidates (optional, might add noise)
+          // else if (sheetData.length > 1 && j < sheetData[1].length && double.tryParse(sheetData[1][j]) == null) {
+          //    potentialColumns.add(colName);
+          // }
+      }
+      // Ensure uniqueness
+      return potentialColumns.toSet().toList();
   }
   
   // Upload and parse CSV file; append data to sheetData.
@@ -268,29 +369,27 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
     List<Map<String, dynamic>> detailedStats = [];
     teamRows.forEach((teamNumber, rows) {
       Map<String, dynamic> teamStats = {'team': teamNumber};
-      
+
       // Define coral and algae column groups for more specific stats
+      // REMOVED: 'auto_coral' and 'auto_algae' groups
       Map<String, List<String>> coralAlgaeGroups = {
-        'auto_coral': [
-          'Auto Coral L1 Scored', 'Auto Coral L2 Scored', 
-          'Auto Coral L3 Scored', 'Auto Coral L4 Scored'
-        ],
-        'auto_algae': [
-          'Auto Barge Algae Scored', 'Auto Processor Algae Scored'
-        ],
+        // Removed: 'auto_coral': [
+        // Removed: 'auto_algae': [
         'teleop_coral': [
           'Coral L1 Scored', 'Coral L2 Scored', 
           'Coral L3 Scored', 'Coral L4 Scored'
         ],
         'teleop_algae': [
-          'Barge Algae Scored', 'Processor Algae Scored'
+          // Removed: 'Barge Algae Scored', 'Processor Algae Scored'
         ]
       };
       
-      // Calculate separate statistics for each group
+      // Calculate separate statistics for each group (now only teleop_coral)
       coralAlgaeGroups.forEach((groupName, columns) {
+        // Skip the now empty 'teleop_algae' group for avg/std calculation
+        if (groupName == 'teleop_algae') return;
+
         List<double> groupValues = [];
-        
         for (String colName in columns) {
           int colIndex = _columnIndices[colName] ?? -1;
           if (colIndex == -1) continue;
@@ -313,10 +412,22 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
       });
       
       // Calculate statistics for individual coral/algae columns too
-      List<String> allCoralAlgaeColumns = [];
-      coralAlgaeGroups.values.forEach((columns) => allCoralAlgaeColumns.addAll(columns));
-      
-      for (String colName in allCoralAlgaeColumns) {
+      // REMOVED: All 'Auto...' columns
+      List<String> individualNumericColumns = [];
+      coralAlgaeGroups.values.forEach((columns) => individualNumericColumns.addAll(columns));
+      // Manually add back auto algae if needed, but exclude teleop algae
+      individualNumericColumns.addAll([
+          'Auto Barge Algae Scored', 'Auto Processor Algae Scored'
+      ]);
+      // Ensure uniqueness and remove teleop algae again just in case
+      individualNumericColumns = individualNumericColumns.toSet().toList();
+      individualNumericColumns.remove('Barge Algae Scored');
+      individualNumericColumns.remove('Processor Algae Scored');
+      // Remove auto columns explicitly in case they were added somehow
+      individualNumericColumns.removeWhere((col) => col.startsWith('Auto'));
+
+
+      for (String colName in individualNumericColumns) {
         int colIndex = _columnIndices[colName] ?? -1;
         if (colIndex == -1) continue;
         
@@ -328,15 +439,17 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
           }
         }
         
+        // Use _generateStatKey to create the keys consistent with formatStat
+        String avgKey = _generateStatKey(colName, 'avg');
+        String stdKey = _generateStatKey(colName, 'std');
+
         if (values.isNotEmpty) {
-          String simpleName = colName.replaceAll(' Scored', '').replaceAll(' ', '_').toLowerCase();
-          teamStats[simpleName + '_avg'] = average(values);
-          teamStats[simpleName + '_std'] = standardDeviation(values);
+          teamStats[avgKey] = average(values);
+          teamStats[stdKey] = standardDeviation(values);
         } else {
           // Ensure keys exist even if empty
-          String simpleName = colName.replaceAll(' Scored', '').replaceAll(' ', '_').toLowerCase();
-          teamStats[simpleName + '_avg'] = 0.0;
-          teamStats[simpleName + '_std'] = 0.0;
+          teamStats[avgKey] = 0.0;
+          teamStats[stdKey] = 0.0;
         }
       }
       
@@ -389,52 +502,56 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
         teamStats['overall_std'] = 0.0;
       }
 
-      // Add boolean stats (Moved?, Died?, etc.) - Ensure these keys exist
-      List<String> booleanColumns = ['Moved?', 'Died?', 'No Show', 'Tipped/Fell Over?'];
-      for (String colName in booleanColumns) {
-          int colIndex = _columnIndices[colName] ?? -1;
-          if (colIndex != -1) {
-              List<double> boolValues = [];
-              for (var row in rows) {
-                  if (row.length > colIndex) {
-                      String value = row[colIndex].toLowerCase();
-                      if (value == 'true' || value == 'yes' || value == '1' || value == 'y') {
-                          boolValues.add(1.0);
-                      } else if (value == 'false' || value == 'no' || value == '0' || value == 'n') {
-                          boolValues.add(0.0);
-                      }
+      // Add boolean stats - Calculate BOTH rate and mode
+      // Use the new helper to find potential boolean columns
+      List<String> potentialBooleanColumns = _findPotentialBooleanColumns();
+      // Also include columns previously identified as boolean even if helper misses them
+      List<String> allBooleanColsToCheck = [
+          ...potentialBooleanColumns,
+          // Add back specific columns if needed, ensuring they are in the header
+          'Moved?', 'Died?', 'No Show', 'Tipped/Fell Over?',
+          'Barge Algae Scored', 'Processor Algae Scored', 'End Position',
+          'Did something?', 'Did Foul?', 'Did auton worked?',
+          'Played Algae?(Disloged NO COUNT)', 'Crossed Feild/Played Defense?',
+          'Was the robot Defended by someone?', 'Yellow/Red Card', 'Climbed?'
+      ].toSet().where((col) => _columnIndices.containsKey(col)).toList(); // Ensure they exist in current header
+
+
+      for (String colName in allBooleanColsToCheck) {
+          int colIndex = _columnIndices[colName]!; // We know it exists from the check above
+
+          List<double> boolValuesForRate = [];
+          List<String> stringValuesForMode = []; // Store original strings for mode
+
+          for (var row in rows) {
+              if (row.length > colIndex) {
+                  String value = row[colIndex].trim();
+                  stringValuesForMode.add(value); // Add raw value for mode calculation
+
+                  String lowerValue = value.toLowerCase();
+                  // Rate calculation logic (same as before)
+                  if (lowerValue.isNotEmpty && lowerValue != '0' && lowerValue != 'false' && lowerValue != 'no' && lowerValue != 'n') {
+                      boolValuesForRate.add(1.0);
+                  } else if (lowerValue == '0' || lowerValue == 'false' || lowerValue == 'no' || lowerValue == 'n' || lowerValue.isEmpty) {
+                      boolValuesForRate.add(0.0);
                   }
+              } else {
+                 stringValuesForMode.add(''); // Add empty string if cell is missing
+                 boolValuesForRate.add(0.0); // Assume false/0 for rate if missing
               }
-              teamStats[colName + '_rate'] = average(boolValues);
-          } else {
-              teamStats[colName + '_rate'] = 0.0; // Ensure key exists
+          }
+
+          // Always calculate rate
+          String rateKey = _generateStatKey(colName, 'rate');
+          teamStats[rateKey] = average(boolValuesForRate);
+
+          // Calculate mode IF this column is selected for mode
+          if (_modeBooleanColumns.contains(colName)) {
+              String modeKey = _generateStatKey(colName, 'mode');
+              teamStats[modeKey] = calculateMode(stringValuesForMode);
           }
       }
 
-      // Add End Position Mode - Ensure keys exist
-      int posIndex = _columnIndices['End Position'] ?? -1;
-      if (posIndex != -1) {
-          Map<String, int> positions = {};
-          for (var row in rows) {
-              if (row.length > posIndex && row[posIndex].isNotEmpty) {
-                  String pos = row[posIndex];
-                  positions[pos] = (positions[pos] ?? 0) + 1;
-              }
-          }
-          if (positions.isNotEmpty) {
-              var sortedEntries = positions.entries.toList()
-                  ..sort((a, b) => b.value.compareTo(a.value));
-              teamStats['end_position_mode'] = sortedEntries.first.key;
-              teamStats['end_position_count'] = sortedEntries.first.value;
-          } else {
-              teamStats['end_position_mode'] = 'N/A';
-              teamStats['end_position_count'] = 0;
-          }
-      } else {
-          teamStats['end_position_mode'] = 'N/A';
-          teamStats['end_position_count'] = 0;
-      }
-      
       detailedStats.add(teamStats);
     });
     
@@ -454,22 +571,73 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
     return detailedStats;
   }
 
+  // Helper to generate consistent keys for stats map
+  String _generateStatKey(String colName, String type) {
+      String base = colName
+          .replaceAll('?', '')
+          .replaceAll('(Disloged NO COUNT)', '')
+          .replaceAll('/', '_')
+          .replaceAll(' ', '_')
+          .toLowerCase();
+      // Handle specific renames if needed (like End Position -> climb)
+      if (colName == 'End Position') base = 'climb';
+      if (colName == 'Did something?') base = 'auto_did_something';
+      if (colName == 'Did Foul?') base = 'auto_did_foul';
+      if (colName == 'Did auton worked?') base = 'auto_worked';
+      if (colName == 'Barge Algae Scored') base = 'teleop_barge_algae';
+      if (colName == 'Processor Algae Scored') base = 'teleop_processor_algae';
+      if (colName == 'Played Algae?(Disloged NO COUNT)') base = 'teleop_played_algae';
+      if (colName == 'Crossed Feild/Played Defense?') base = 'teleop_crossed_played_defense';
+      if (colName == 'Was the robot Defended by someone?') base = 'defended_by_other';
+
+
+      return '${base}_$type';
+  }
+
   // New method to get defensive robot ranking
   List<Map<String, dynamic>> getDefensiveRobotRanking() {
     List<Map<String, dynamic>> allStats = getDetailedTeamStats();
-    
+
+    // Determine the correct key for defense rating
+    String defenseRatingKey = _generateStatKey('Was the robot Defended by someone?', 'rate');
+    // Fallback to old key if necessary? For now, assume new key.
+    // String defenseRatingKey = _columnIndices.containsKey('Was the robot Defended by someone?')
+    //     ? _generateStatKey('Was the robot Defended by someone?', 'rate')
+    //     : 'defense_rating'; // Fallback, might be incorrect
+
+    // Determine key for Moved Rate (assuming it corresponds to 'Did something?')
+    String movedRateKey = _generateStatKey('Did something?', 'rate');
+    // Fallback
+    // String movedRateKey = _columnIndices.containsKey('Did something?')
+    //     ? _generateStatKey('Did something?', 'rate')
+    //     : 'Moved?_rate'; // Fallback
+
+    // Determine key for Died Rate
+    String diedRateKey = _generateStatKey('Died?', 'rate');
+
+
     // Filter for robots with defense_rating > 0 (not exactly 0)
     List<Map<String, dynamic>> defenseRobots = allStats
-      .where((stats) => (stats['defense_rating'] ?? 0) > 0.0)
+      .where((stats) => (stats[defenseRatingKey] ?? 0) > 0.0)
       .toList();
-    
+
     // Sort by defense rating (descending)
     defenseRobots.sort((a, b) {
-      double aDefense = a['defense_rating'] ?? 0.0;
-      double bDefense = b['defense_rating'] ?? 0.0;
+      double aDefense = a[defenseRatingKey] ?? 0.0;
+      double bDefense = b[defenseRatingKey] ?? 0.0;
       return bDefense.compareTo(aDefense);
     });
-    
+
+    // Add the specific keys needed for the defensive table to the stats map if missing
+    // This ensures the DataCells later don't crash
+     defenseRobots = defenseRobots.map((stats) {
+        stats['defense_rating_display'] = stats[defenseRatingKey] ?? 0.0;
+        stats['moved_rate_display'] = stats[movedRateKey] ?? 0.0;
+        stats['died_rate_display'] = stats[diedRateKey] ?? 0.0;
+        return stats;
+     }).toList();
+
+
     return defenseRobots;
   }
 
@@ -547,9 +715,146 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
     );
   }
 
+  // New: Method to show a dialog for selecting columns for the statistics table
+  Future<void> _showStatsColumnSelectionDialog() async {
+    if (sheetData.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Please upload data first.")),
+      );
+      return;
+    }
+
+    List<String> availableColumns = List<String>.from(sheetData.first); // All columns
+    List<String> currentlySelected = List<String>.from(_selectedStatsColumns);
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text("Select Columns for Statistics Table"),
+              content: Container(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: availableColumns.length,
+                  itemBuilder: (context, index) {
+                    final colName = availableColumns[index];
+                    final isSelected = currentlySelected.contains(colName);
+                    return CheckboxListTile(
+                      title: Text(colName),
+                      value: isSelected,
+                      onChanged: (bool? value) {
+                        setDialogState(() {
+                          if (value == true) {
+                            currentlySelected.add(colName);
+                          } else {
+                            currentlySelected.remove(colName);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  child: Text("Cancel"),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                TextButton(
+                  child: Text("OK"),
+                  onPressed: () {
+                    setState(() {
+                      _selectedStatsColumns = currentlySelected;
+                    });
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+   // New: Method to show a dialog for selecting boolean columns for mode calculation
+  Future<void> _showModeColumnSelectionDialog() async {
+    if (sheetData.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Please upload data first.")),
+      );
+      return;
+    }
+
+    List<String> availableColumns = _findPotentialBooleanColumns(); // Use helper
+    if (availableColumns.isEmpty) {
+       ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("No potential boolean columns found to select for mode.")),
+      );
+      return;
+    }
+    List<String> currentlySelected = List<String>.from(_modeBooleanColumns);
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text("Select Boolean Columns for Mode"),
+              content: Container(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: availableColumns.length,
+                  itemBuilder: (context, index) {
+                    final colName = availableColumns[index];
+                    final isSelected = currentlySelected.contains(colName);
+                    return CheckboxListTile(
+                      title: Text(colName),
+                      value: isSelected,
+                      onChanged: (bool? value) {
+                        setDialogState(() {
+                          if (value == true) {
+                            currentlySelected.add(colName);
+                          } else {
+                            currentlySelected.remove(colName);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  child: Text("Cancel"),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                TextButton(
+                  child: Text("OK"),
+                  onPressed: () {
+                    setState(() {
+                      _modeBooleanColumns = currentlySelected;
+                    });
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     List<String> header = sheetData.isNotEmpty ? sheetData.first : [];
+    // Recalculate stats every build - might be inefficient for large data
     List<Map<String, dynamic>> detailedStats = getDetailedTeamStats();
     List<Map<String, dynamic>> defenseRobots = getDefensiveRobotRanking();
     
@@ -581,17 +886,27 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
             ),
             const SizedBox(height: 12),
             // Buttons Row
-            Row(
+            Wrap( // Use Wrap for better responsiveness
+              spacing: 8.0, // Horizontal space between buttons
+              runSpacing: 4.0, // Vertical space between button rows
               children: [
                 ElevatedButton(
                   onPressed: uploadCSV,
                   child: const Text("Upload CSV"),
                 ),
-                const SizedBox(width: 8), // Add spacing
-                // New Button to select columns for overall average
                 ElevatedButton(
                   onPressed: _showColumnSelectionDialog,
                   child: const Text("Select Overall Columns"),
+                ),
+                // New Button to select stats columns
+                ElevatedButton(
+                  onPressed: _showStatsColumnSelectionDialog,
+                  child: const Text("Select Stats Columns"),
+                ),
+                 // New Button to select mode columns
+                ElevatedButton(
+                  onPressed: _showModeColumnSelectionDialog,
+                  child: const Text("Select Mode Columns"),
                 ),
               ],
             ),
@@ -602,6 +917,27 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
                  "Overall Avg Columns: ${_selectedNumericColumnsForOverall.join(', ')}",
                  style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic),
                  overflow: TextOverflow.ellipsis,
+                 maxLines: 1,
+               ),
+             ),
+             // Display selected stats columns
+             Padding(
+               padding: const EdgeInsets.only(top: 4.0),
+               child: Text(
+                 "Stats Table Columns: ${_selectedStatsColumns.join(', ')}",
+                 style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: Colors.blue),
+                 overflow: TextOverflow.ellipsis,
+                 maxLines: 1,
+               ),
+             ),
+             // Display selected mode columns
+             Padding(
+               padding: const EdgeInsets.only(top: 4.0),
+               child: Text(
+                 "Mode Columns: ${_modeBooleanColumns.join(', ')}",
+                 style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: Colors.green),
+                 overflow: TextOverflow.ellipsis,
+                 maxLines: 1,
                ),
              ),
             const SizedBox(height: 12),
@@ -677,7 +1013,7 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
               ),
             ),
             const Divider(height: 12, thickness: 1),
-            // Second table - Team statistics with horizontal scrolling - Modified to show each level separately
+            // Second table - Team statistics
             Expanded(
               flex: 1,
               child: detailedStats.isNotEmpty
@@ -690,57 +1026,61 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
                             scrollDirection: Axis.horizontal,
                             child: SingleChildScrollView(
                               child: DataTable(
-                                columnSpacing: 8, // Smaller spacing to fit more columns
-                                // Ensure columns are dynamically generated based on available stats
+                                columnSpacing: 8,
+                                // Use selected stats columns
                                 columns: _buildStatsColumns(detailedStats.first),
                                 rows: detailedStats.map((stats) {
                                   // Text formatting helper for avg±std
-                                  String formatStat(String prefix) {
-                                    // Check if keys exist before accessing
-                                    double avg = stats.containsKey('${prefix}_avg') ? (stats['${prefix}_avg'] ?? 0.0) : 0.0;
-                                    double std = stats.containsKey('${prefix}_std') ? (stats['${prefix}_std'] ?? 0.0) : 0.0;
-                                    return "${avg.toStringAsFixed(1)}±${std.toStringAsFixed(1)}";
+                                  String formatStat(String colName) {
+                                     // Find the corresponding keys for avg and std
+                                     String avgKey = _generateStatKey(colName, 'avg');
+                                     String stdKey = _generateStatKey(colName, 'std');
+                                     double avg = stats.containsKey(avgKey) ? (stats[avgKey] ?? 0.0) : 0.0;
+                                     double std = stats.containsKey(stdKey) ? (stats[stdKey] ?? 0.0) : 0.0;
+                                     return "${avg.toStringAsFixed(1)}±${std.toStringAsFixed(1)}";
                                   }
                                    // Helper for rates
-                                   String formatRate(String key) {
-                                     double rate = stats.containsKey(key) ? (stats[key] ?? 0.0) : 0.0;
+                                   String formatRate(String colName) {
+                                     String rateKey = _generateStatKey(colName, 'rate');
+                                     double rate = stats.containsKey(rateKey) ? (stats[rateKey] ?? 0.0) : 0.0;
                                      return rate.toStringAsFixed(2);
                                    }
-                                   // Helper for end position
-                                   String formatEndPos(Map<String, dynamic> stats) {
-                                      String mode = stats.containsKey('end_position_mode') ? (stats['end_position_mode'] ?? 'N/A') : 'N/A';
-                                      //int count = stats.containsKey('end_position_count') ? (stats['end_position_count'] ?? 0) : 0;
-                                      // return "$mode ($count)"; // Optionally include count
-                                      return mode;
+                                   // Helper for mode
+                                   String formatMode(String colName) {
+                                     String modeKey = _generateStatKey(colName, 'mode');
+                                     return stats.containsKey(modeKey) ? (stats[modeKey]?.toString() ?? 'N/A') : 'N/A';
                                    }
 
-                                  return DataRow(
-                                    cells: [
-                                      DataCell(Text(stats['team'] ?? '')),
-                                      DataCell(Text("${(stats['overall_avg'] ?? 0).toStringAsFixed(1)}±${(stats['overall_std'] ?? 0).toStringAsFixed(1)}")),
-                                      // Auto Coral levels
-                                      DataCell(Text(formatStat('auto_coral_l1'))),
-                                      DataCell(Text(formatStat('auto_coral_l2'))),
-                                      DataCell(Text(formatStat('auto_coral_l3'))),
-                                      DataCell(Text(formatStat('auto_coral_l4'))),
-                                      // Auto Algae types
-                                      DataCell(Text(formatStat('auto_barge_algae'))),
-                                      DataCell(Text(formatStat('auto_processor_algae'))),
-                                      // TeleOp Coral levels
-                                      DataCell(Text(formatStat('coral_l1'))),
-                                      DataCell(Text(formatStat('coral_l2'))),
-                                      DataCell(Text(formatStat('coral_l3'))),
-                                      DataCell(Text(formatStat('coral_l4'))),
-                                      // TeleOp Algae types
-                                      DataCell(Text(formatStat('barge_algae'))),
-                                      DataCell(Text(formatStat('processor_algae'))),
-                                      // Other metrics - use helpers to ensure keys exist
-                                      DataCell(Text(formatRate('Moved?_rate'))),
-                                      DataCell(Text(formatRate('defense_rating'))),
-                                      DataCell(Text(formatRate('Died?_rate'))),
-                                      DataCell(Text(formatEndPos(stats))),
-                                    ],
-                                  );
+                                  // Build cells based on _selectedStatsColumns
+                                  List<DataCell> cells = _selectedStatsColumns.map((colName) {
+                                      // Determine how to display based on column type and mode selection
+                                      if (colName == 'Team Number' || colName == 'Team') {
+                                          return DataCell(Text(stats['team'] ?? ''));
+                                      } else if (_selectedNumericColumnsForOverall.contains(colName) ||
+                                                 colName.startsWith('Coral L')) { // Assume Coral L are numeric avg/std
+                                          return DataCell(Text(formatStat(colName)));
+                                      } else if (_modeBooleanColumns.contains(colName)) {
+                                          // Display mode if selected
+                                          return DataCell(Text(formatMode(colName)));
+                                      } else if (_findPotentialBooleanColumns().contains(colName) ||
+                                                 // Add other known booleans just in case helper missed them
+                                                 ['Moved?', 'Died?', 'No Show', 'Tipped/Fell Over?',
+                                                  'Barge Algae Scored', 'Processor Algae Scored', 'End Position',
+                                                  'Did something?', 'Did Foul?', 'Did auton worked?',
+                                                  'Played Algae?(Disloged NO COUNT)', 'Crossed Feild/Played Defense?',
+                                                  'Was the robot Defended by someone?', 'Yellow/Red Card', 'Climbed?'].contains(colName)
+                                                ) {
+                                          // Display rate for booleans not selected for mode
+                                          return DataCell(Text(formatRate(colName)));
+                                      } else {
+                                          // Fallback for unknown column types (display raw or empty)
+                                          // Or try to display rate as a default?
+                                          return DataCell(Text(formatRate(colName))); // Default to rate
+                                          // return DataCell(Text(stats[colName]?.toString() ?? ''));
+                                      }
+                                  }).toList();
+
+                                  return DataRow(cells: cells);
                                 }).toList(),
                               ),
                             ),
@@ -750,7 +1090,7 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
                     )
                   : Container(
                       alignment: Alignment.center,
-                      child: Text("No statistics available (requires data rows)."), // Updated message
+                      child: Text("No statistics available (requires data rows)."),
                     ),
             ),
             
@@ -765,27 +1105,27 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
                     const Text("Defensive Robot Ranking", 
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange)),
                     Expanded(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: SingleChildScrollView(
+                      child: SingleChildScrollView( // Added outer vertical scroll
+                        child: SingleChildScrollView( // Added inner horizontal scroll
+                          scrollDirection: Axis.horizontal,
                           child: DataTable(
-                            columns: const [
+                            columns: const [ // Keep these columns fixed for defensive ranking
                               DataColumn(label: Text("Team")),
-                              DataColumn(label: Text("Defense Rating")),
+                              DataColumn(label: Text("Defense Rating")), // Uses 'Was the robot Defended by someone?' rate
                               DataColumn(label: Text("Overall Avg")),
-                              DataColumn(label: Text("Died Rate")),
-                              DataColumn(label: Text("Moved Rate")),
+                              DataColumn(label: Text("Died Rate")), // Uses 'Died?' rate
+                              DataColumn(label: Text("Moved Rate")), // Uses 'Did something?' rate
                             ],
                             rows: defenseRobots.map((stats) {
                               return DataRow(
                                 cells: [
                                   DataCell(Text(stats['team'] ?? '', 
                                     style: TextStyle(fontWeight: FontWeight.bold))),
-                                  DataCell(Text((stats['defense_rating'] ?? 0).toStringAsFixed(2),
+                                  DataCell(Text((stats['defense_rating_display'] ?? 0).toStringAsFixed(2), // Use the pre-calculated display key
                                     style: TextStyle(fontWeight: FontWeight.bold))),
                                   DataCell(Text((stats['overall_avg'] ?? 0).toStringAsFixed(2))),
-                                  DataCell(Text((stats['Died?_rate'] ?? 0).toStringAsFixed(2))),
-                                  DataCell(Text((stats['Moved?_rate'] ?? 0).toStringAsFixed(2))),
+                                  DataCell(Text((stats['died_rate_display'] ?? 0).toStringAsFixed(2))), // Use the pre-calculated display key
+                                  DataCell(Text((stats['moved_rate_display'] ?? 0).toStringAsFixed(2))), // Use the pre-calculated display key
                                 ],
                               );
                             }).toList(),
@@ -804,18 +1144,29 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
   }
 
   // New Helper function to build columns dynamically for the stats table
+  // Now uses _selectedStatsColumns
   List<DataColumn> _buildStatsColumns(Map<String, dynamic> sampleStats) {
-    // Define the standard columns and their order
-    List<String> columnOrder = [
-      "Team", "Overall",
-      "Auto L1", "Auto L2", "Auto L3", "Auto L4",
-      "Auto Barge", "Auto Processor",
-      "TeleOp L1", "TeleOp L2", "TeleOp L3", "TeleOp L4",
-      "TeleOp Barge", "TeleOp Processor",
-      "Moved?", "Defense", "Died?", "End Pos"
-    ];
+    // Build columns based on the selected list
+    return _selectedStatsColumns.map((colName) {
+        // Simplify labels slightly for better fit (optional)
+        String shortLabel = colName
+            .replaceAll('Scored', '')
+            .replaceAll('?(Disloged NO COUNT)', '?')
+            .replaceAll('Crossed Feild/Played Defense?', 'Cross/Def?')
+            .replaceAll('Was the robot Defended by someone?', 'Defended By?')
+            .replaceAll('Did something?', 'Auto Smth?')
+            .replaceAll('Did Foul?', 'Auto Foul?')
+            .replaceAll('Did auton worked?', 'Auto Wrk?')
+            .replaceAll('Tipped/Fell Over?', 'Tipped?')
+            .replaceAll('Yellow/Red Card', 'Card')
+            .trim();
+         // Add indication if it's a mode column
+         if (_modeBooleanColumns.contains(colName)) {
+             shortLabel += " (Mode)";
+         }
 
-    return columnOrder.map((label) => DataColumn(label: Text(label))).toList();
+        return DataColumn(label: Text(shortLabel, style: TextStyle(fontSize: 11)));
+    }).toList();
   }
 
   // Helper function to check list equality
