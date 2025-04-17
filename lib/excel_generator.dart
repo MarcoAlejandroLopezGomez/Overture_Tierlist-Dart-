@@ -24,10 +24,12 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
   // Pre-defined column names for this specific application
   // UPDATED: Replaced with new column headers provided by the user
   final List<String> defaultColumnNames = [
-    "Lead Scouter", "Scouter Name", "Match Number", "Future Alliance in Qualy?", "Team Number",
+    "Lead Scouter","Highlights Scouter Name", "Scouter Name", "Match Number",
+    "Future Alliance in Qualy?", "Team Number",
     "Did something?", "Did Foul?", "Did auton worked?",
     "Coral L1 Scored", "Coral L2 Scored", "Coral L3 Scored", "Coral L4 Scored",
-    "Played Algae?(Disloged NO COUNT)", "Crossed Feild/Played Defense?", "Tipped/Fell Over?",
+    "Played Algae?(Disloged NO COUNT)", "Algae Scored in Barge",
+    "Crossed Feild/Played Defense?", "Tipped/Fell Over?",
     "Died?", "Was the robot Defended by someone?", "Yellow/Red Card", "Climbed?"
   ];
 
@@ -123,12 +125,14 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
   // New: Initialize or update the list of columns used for overall average
   void _initializeSelectedNumericColumns() {
     // Default to coral and algae columns if not already set or if header changed
-    // REMOVED: All 'Auto...' columns and 'Barge Algae Scored', 'Processor Algae Scored'
+    // REMOVED: All 'Auto...' columns and 'Processor Algae Scored'
+    // NOTE: 'Algae Scored in Barge' is NOT included in OVERALL average by default, only in specific stats
     List<String> defaultOverallColumns = [
       // Removed: 'Auto Coral L1 Scored', 'Auto Coral L2 Scored', 'Auto Coral L3 Scored', 'Auto Coral L4 Scored',
       // Removed: 'Auto Barge Algae Scored', 'Auto Processor Algae Scored',
       'Coral L1 Scored', 'Coral L2 Scored', 'Coral L3 Scored', 'Coral L4 Scored'
-      // Removed: 'Barge Algae Scored', 'Processor Algae Scored'
+      // Removed: 'Processor Algae Scored'
+      // Removed: 'Barge Algae Scored' (Old name)
     ];
     // Filter defaults to only include columns actually present in the current header
     List<String> currentHeader = sheetData.isNotEmpty ? sheetData.first : [];
@@ -139,7 +143,8 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
     if (_selectedNumericColumnsForOverall.isEmpty && sheetData.length > 1) {
        _selectedNumericColumnsForOverall = _findPotentialNumericColumns();
        // Ensure the specific teleop algae and auto columns are not accidentally included
-       _selectedNumericColumnsForOverall.remove('Barge Algae Scored');
+       _selectedNumericColumnsForOverall.remove('Barge Algae Scored'); // Old name
+       _selectedNumericColumnsForOverall.remove('Algae Scored in Barge'); // New name
        _selectedNumericColumnsForOverall.remove('Processor Algae Scored');
        _selectedNumericColumnsForOverall.remove('DidSomething?');
        _selectedNumericColumnsForOverall.remove('DidFoul?');
@@ -178,9 +183,11 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
       for (int j = 0; j < header.length; j++) {
           // Skip specific columns we don't want in overall average by default
           // ADDED: New auto boolean columns and old auto numeric columns to exclusion list
+          // REMOVED: 'Barge Algae Scored' from exclusion
           if (header[j] == 'Team Number' ||
-              header[j] == 'Barge Algae Scored' || // Exclude explicitly
-              header[j] == 'Processor Algae Scored' || // Exclude explicitly
+              // header[j] == 'Barge Algae Scored' || // Allow this (old name)
+              // header[j] == 'Algae Scored in Barge' || // Allow this (new name) - Handled below by not being in this list
+              header[j] == 'Processor Algae Scored' || // Exclude explicitly (if it exists)
               header[j] == 'End Position' || // Exclude explicitly
               header[j] == 'DidSomething?' || // Exclude explicitly
               header[j] == 'DidFoul?' || // Exclude explicitly
@@ -211,10 +218,12 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
       for (int j = 0; j < header.length; j++) {
           String colName = header[j];
           // Skip identifying info and known numeric columns
+          // ADDED: 'Algae Scored in Barge' to exclusion list for booleans
           if (colName == 'Team Number' ||
               colName == 'Match Number' ||
               colName == 'Lead Scouter' ||
               colName == 'Scouter Name' ||
+              colName == 'Algae Scored in Barge' || // Treat as numeric
               numericColumns.contains(colName) ||
               _selectedNumericColumnsForOverall.contains(colName)) { // Also skip those selected for overall avg
               continue;
@@ -372,6 +381,7 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
 
       // Define coral and algae column groups for more specific stats
       // REMOVED: 'auto_coral' and 'auto_algae' groups
+      // UPDATED: Added 'Algae Scored in Barge' back to teleop_algae
       Map<String, List<String>> coralAlgaeGroups = {
         // Removed: 'auto_coral': [
         // Removed: 'auto_algae': [
@@ -380,14 +390,15 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
           'Coral L3 Scored', 'Coral L4 Scored'
         ],
         'teleop_algae': [
-          // Removed: 'Barge Algae Scored', 'Processor Algae Scored'
+          'Algae Scored in Barge' // Added back
+          // Removed: 'Processor Algae Scored'
         ]
       };
       
-      // Calculate separate statistics for each group (now only teleop_coral)
+      // Calculate separate statistics for each group (now includes teleop_algae)
       coralAlgaeGroups.forEach((groupName, columns) {
-        // Skip the now empty 'teleop_algae' group for avg/std calculation
-        if (groupName == 'teleop_algae') return;
+        // REMOVED: Skip condition for teleop_algae
+        // if (groupName == 'teleop_algae') return;
 
         List<double> groupValues = [];
         for (String colName in columns) {
@@ -402,12 +413,16 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
           }
         }
         
+        // Use _generateStatKey for group stats as well
+        String avgKey = _generateStatKey(groupName, 'avg'); // e.g., teleop_algae_avg
+        String stdKey = _generateStatKey(groupName, 'std'); // e.g., teleop_algae_std
+
         if (groupValues.isNotEmpty) {
-          teamStats[groupName + '_avg'] = average(groupValues);
-          teamStats[groupName + '_std'] = standardDeviation(groupValues);
+          teamStats[avgKey] = average(groupValues);
+          teamStats[stdKey] = standardDeviation(groupValues);
         } else {
-          teamStats[groupName + '_avg'] = 0.0;
-          teamStats[groupName + '_std'] = 0.0;
+          teamStats[avgKey] = 0.0;
+          teamStats[stdKey] = 0.0;
         }
       });
       
@@ -416,13 +431,15 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
       List<String> individualNumericColumns = [];
       coralAlgaeGroups.values.forEach((columns) => individualNumericColumns.addAll(columns));
       // Manually add back auto algae if needed, but exclude teleop algae
-      individualNumericColumns.addAll([
-          'Auto Barge Algae Scored', 'Auto Processor Algae Scored'
-      ]);
+      // No longer needed to add auto algae here
+      // individualNumericColumns.addAll([
+      //     'Auto Barge Algae Scored', 'Auto Processor Algae Scored'
+      // ]);
       // Ensure uniqueness and remove teleop algae again just in case
       individualNumericColumns = individualNumericColumns.toSet().toList();
-      individualNumericColumns.remove('Barge Algae Scored');
-      individualNumericColumns.remove('Processor Algae Scored');
+      // REMOVED: Explicit removal of Barge/Processor Algae Scored
+      // individualNumericColumns.remove('Barge Algae Scored');
+      // individualNumericColumns.remove('Processor Algae Scored');
       // Remove auto columns explicitly in case they were added somehow
       individualNumericColumns.removeWhere((col) => col.startsWith('Auto'));
 
@@ -454,7 +471,8 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
       }
       
       // Calculate defense rating specifically
-      int defenseIndex = _columnIndices['Defense?'] ?? -1;
+      // UPDATED: Check for the new defense column name
+      int defenseIndex = _columnIndices['Crossed Feild/Played Defense?'] ?? -1; // Changed from 'Defense?'
       if (defenseIndex != -1) {
         List<double> defenseValues = [];
         for (var row in rows) {
@@ -470,13 +488,17 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
           }
         }
         
+        // Use generated key for consistency
+        String defenseRatingKey = _generateStatKey('Crossed Feild/Played Defense?', 'rate'); // Use rate for consistency
         if (defenseValues.isNotEmpty) {
-          teamStats['defense_rating'] = average(defenseValues);
+          teamStats[defenseRatingKey] = average(defenseValues);
         } else {
-          teamStats['defense_rating'] = 0.0;
+          teamStats[defenseRatingKey] = 0.0;
         }
       } else {
-         teamStats['defense_rating'] = 0.0; // Ensure key exists
+         // Ensure key exists even if column is missing
+         String defenseRatingKey = _generateStatKey('Crossed Feild/Played Defense?', 'rate');
+         teamStats[defenseRatingKey] = 0.0;
       }
       
       // Calculate overall performance metrics using SELECTED columns
@@ -506,11 +528,15 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
       // Use the new helper to find potential boolean columns
       List<String> potentialBooleanColumns = _findPotentialBooleanColumns();
       // Also include columns previously identified as boolean even if helper misses them
+      // REMOVED: 'Barge Algae Scored', 'Processor Algae Scored', 'End Position' from this list
       List<String> allBooleanColsToCheck = [
           ...potentialBooleanColumns,
           // Add back specific columns if needed, ensuring they are in the header
-          'Moved?', 'Died?', 'No Show', 'Tipped/Fell Over?',
-          'Barge Algae Scored', 'Processor Algae Scored', 'End Position',
+          'Moved?', // This might correspond to 'Did something?' now
+          'Died?', 'No Show', 'Tipped/Fell Over?',
+          // 'Barge Algae Scored', // Now numeric
+          // 'Processor Algae Scored', // Removed
+          // 'End Position', // Now 'Climbed?'
           'Did something?', 'Did Foul?', 'Did auton worked?',
           'Played Algae?(Disloged NO COUNT)', 'Crossed Feild/Played Defense?',
           'Was the robot Defended by someone?', 'Yellow/Red Card', 'Climbed?'
@@ -573,20 +599,29 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
 
   // Helper to generate consistent keys for stats map
   String _generateStatKey(String colName, String type) {
+      // Handle group names first
+      if (colName == 'teleop_coral' || colName == 'teleop_algae') {
+          return '${colName}_$type';
+      }
+
       String base = colName
           .replaceAll('?', '')
-          .replaceAll('(Disloged NO COUNT)', '')
+          .replaceAll('(Disloged NO COUNT)', '') // Old algae name part
+          .replaceAll('(Disloged DOES NOT COUNT)', '') // New algae name part
           .replaceAll('/', '_')
           .replaceAll(' ', '_')
           .toLowerCase();
-      // Handle specific renames if needed (like End Position -> climb)
-      if (colName == 'End Position') base = 'climb';
+      // Handle specific renames if needed
+      if (colName == 'End Position') base = 'climb'; // Old climb name
+      if (colName == 'Climbed?') base = 'climb'; // New climb name
       if (colName == 'Did something?') base = 'auto_did_something';
       if (colName == 'Did Foul?') base = 'auto_did_foul';
       if (colName == 'Did auton worked?') base = 'auto_worked';
-      if (colName == 'Barge Algae Scored') base = 'teleop_barge_algae';
-      if (colName == 'Processor Algae Scored') base = 'teleop_processor_algae';
-      if (colName == 'Played Algae?(Disloged NO COUNT)') base = 'teleop_played_algae';
+      if (colName == 'Barge Algae Scored') base = 'teleop_barge_algae'; // Old name
+      if (colName == 'Algae Scored in Barge') base = 'teleop_barge_algae'; // New name
+      if (colName == 'Processor Algae Scored') base = 'teleop_processor_algae'; // If it ever comes back
+      if (colName == 'Played Algae?(Disloged NO COUNT)') base = 'teleop_played_algae'; // Old name
+      if (colName == 'Played Algae?(Disloged DOES NOT COUNT)') base = 'teleop_played_algae'; // New name
       if (colName == 'Crossed Feild/Played Defense?') base = 'teleop_crossed_played_defense';
       if (colName == 'Was the robot Defended by someone?') base = 'defended_by_other';
 
@@ -1035,6 +1070,7 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
                                      // Find the corresponding keys for avg and std
                                      String avgKey = _generateStatKey(colName, 'avg');
                                      String stdKey = _generateStatKey(colName, 'std');
+                                     // Check if keys exist before accessing
                                      double avg = stats.containsKey(avgKey) ? (stats[avgKey] ?? 0.0) : 0.0;
                                      double std = stats.containsKey(stdKey) ? (stats[stdKey] ?? 0.0) : 0.0;
                                      return "${avg.toStringAsFixed(1)}±${std.toStringAsFixed(1)}";
@@ -1042,12 +1078,14 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
                                    // Helper for rates
                                    String formatRate(String colName) {
                                      String rateKey = _generateStatKey(colName, 'rate');
+                                     // Check if key exists before accessing
                                      double rate = stats.containsKey(rateKey) ? (stats[rateKey] ?? 0.0) : 0.0;
                                      return rate.toStringAsFixed(2);
                                    }
                                    // Helper for mode
                                    String formatMode(String colName) {
                                      String modeKey = _generateStatKey(colName, 'mode');
+                                     // Check if key exists before accessing
                                      return stats.containsKey(modeKey) ? (stats[modeKey]?.toString() ?? 'N/A') : 'N/A';
                                    }
 
@@ -1057,17 +1095,23 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
                                       if (colName == 'Team Number' || colName == 'Team') {
                                           return DataCell(Text(stats['team'] ?? ''));
                                       } else if (_selectedNumericColumnsForOverall.contains(colName) ||
-                                                 colName.startsWith('Coral L')) { // Assume Coral L are numeric avg/std
+                                                 colName.startsWith('Coral L') || // Assume Coral L are numeric avg/std
+                                                 colName == 'Algae Scored in Barge') { // Treat Algae Scored as numeric avg/std
                                           return DataCell(Text(formatStat(colName)));
                                       } else if (_modeBooleanColumns.contains(colName)) {
                                           // Display mode if selected
                                           return DataCell(Text(formatMode(colName)));
                                       } else if (_findPotentialBooleanColumns().contains(colName) ||
                                                  // Add other known booleans just in case helper missed them
+                                                 // REMOVED: 'Barge Algae Scored', 'Processor Algae Scored', 'End Position'
                                                  ['Moved?', 'Died?', 'No Show', 'Tipped/Fell Over?',
-                                                  'Barge Algae Scored', 'Processor Algae Scored', 'End Position',
+                                                  // 'Barge Algae Scored',
+                                                  // 'Processor Algae Scored',
+                                                  // 'End Position',
                                                   'Did something?', 'Did Foul?', 'Did auton worked?',
-                                                  'Played Algae?(Disloged NO COUNT)', 'Crossed Feild/Played Defense?',
+                                                  'Played Algae?(Disloged NO COUNT)', // Old name
+                                                  'Played Algae?(Disloged DOES NOT COUNT)', // New name
+                                                  'Crossed Feild/Played Defense?',
                                                   'Was the robot Defended by someone?', 'Yellow/Red Card', 'Climbed?'].contains(colName)
                                                 ) {
                                           // Display rate for booleans not selected for mode
@@ -1075,8 +1119,21 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
                                       } else {
                                           // Fallback for unknown column types (display raw or empty)
                                           // Or try to display rate as a default?
-                                          return DataCell(Text(formatRate(colName))); // Default to rate
-                                          // return DataCell(Text(stats[colName]?.toString() ?? ''));
+                                          // Let's try formatStat as a fallback for potentially numeric columns missed earlier
+                                          // Check if avg/std keys exist for this column
+                                          String avgKey = _generateStatKey(colName, 'avg');
+                                          if (stats.containsKey(avgKey)) {
+                                              return DataCell(Text(formatStat(colName)));
+                                          } else {
+                                              // If no avg/std, maybe it's a rate?
+                                              String rateKey = _generateStatKey(colName, 'rate');
+                                              if (stats.containsKey(rateKey)) {
+                                                  return DataCell(Text(formatRate(colName)));
+                                              } else {
+                                                  // Final fallback
+                                                  return DataCell(Text(stats[colName]?.toString() ?? ''));
+                                              }
+                                          }
                                       }
                                   }).toList();
 
@@ -1151,7 +1208,8 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
         // Simplify labels slightly for better fit (optional)
         String shortLabel = colName
             .replaceAll('Scored', '')
-            .replaceAll('?(Disloged NO COUNT)', '?')
+            .replaceAll('?(Disloged NO COUNT)', '?') // Old name
+            .replaceAll('?(Disloged DOES NOT COUNT)', '?') // New name
             .replaceAll('Crossed Feild/Played Defense?', 'Cross/Def?')
             .replaceAll('Was the robot Defended by someone?', 'Defended By?')
             .replaceAll('Did something?', 'Auto Smth?')
@@ -1159,6 +1217,7 @@ class _ExcelGeneratorPageState extends State<ExcelGeneratorPage> {
             .replaceAll('Did auton worked?', 'Auto Wrk?')
             .replaceAll('Tipped/Fell Over?', 'Tipped?')
             .replaceAll('Yellow/Red Card', 'Card')
+            .replaceAll('Algae Scored in Barge', 'Barge Algae') // Shorten
             .trim();
          // Add indication if it's a mode column
          if (_modeBooleanColumns.contains(colName)) {
